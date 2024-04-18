@@ -16,9 +16,10 @@ statement: assign_statement
 
 assign_statement: expression
                 | NAME "=" expression -> assign_statementname
-                | NAME "=" call_function -> assign_statementname
+                | NAME "=" call_function -> assign_statementname  -----> Não devia haver possibilidade de declarar uma variavel com uma função?
+                | type NAME "=" call_function -> assign_statementtype
                 | type NAME "=" expression -> assign_statementtype
-                | type NAME -> assign_statementtype
+                | type NAME -> assign_statementtype_only
 
 if_statement: "if" expression ":" program "else" ":" program
 
@@ -94,14 +95,14 @@ pydot__tree_to_png(tree,'lark_test.png')
 
 class MyInterpreter(Interpreter):
     def __init__(self):
-        self.dicVar = {} #key(nameVariavel-Scope| Value e tipo e Scope???)
+        self.dicVar = {} #key(nameVariavel-Scope|| tipo | Scope || temValue)
         self.scope = "Global"
 
     def start(self,tree):
-        self.visit_children(tree)
+        self.visit_children(tree) 
 
     def program(self,tree):
-        for child in tree.children:
+        for child in tree.children: #Testar com visit_children
             self.visit(child)
 
     def statement(self,tree):
@@ -109,21 +110,35 @@ class MyInterpreter(Interpreter):
 
     def assign_statementname(self,tree):
         nomeVAR = tree.children[0]
+        elemento = tree.children[1]
 
+        if (isinstance(elemento, Tree) and elemento.data == 'expression'):
+                                                        #tipo,scope,temValue
+            self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,self.scope,True)
+        
+        else: #call function
+            nomeFunc = self.visit(elemento)
+            self.dicVar[f"{nomeVAR}-{nomeFunc}"] = (None,nomeFunc,True)
+        
 
     def assign_statementtype(self,tree):
         typeVAR = tree.children[0]
         nomeVAR = tree.children[1]
+        elemento = tree.children[2]
 
-        if len(tree.children) == 2:
-            self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,typeVAR,self.scope)
-        else:
-            value = self.visit(tree.children[2])
-            print("value",value)
-            self.dicVar[f"{nomeVAR}-{self.scope}"] = (value,typeVAR,self.scope)
+        if  (isinstance(elemento, Tree) and elemento.data == 'expression'):               
+            self.dicVar[f"{nomeVAR}-{self.scope}"] = (typeVAR,self.scope,True)
+        else: #call function
+            nomeFunc = self.visit(tree.children[2])
+            self.dicVar[f"{nomeVAR}-{self.scope}"] = (typeVAR,nomeFunc,True)
+
+    def assign_statementtype_only(self,tree):
+        typeVAR = tree.children[0]
+        nomeVAR = tree.children[1]
+        self.dicVar[f"{nomeVAR}-{self.scope}"] = (typeVAR,self.scope,False)
 
     def assign_statement(self,tree):
-        self.visit_children(tree)
+        pass
 
     def if_statement(self,tree):    
         self.visit_children(tree)
@@ -142,10 +157,10 @@ class MyInterpreter(Interpreter):
 
 
     def call_function(self,tree): #Guardar o NAME 
-        self.visit_children(tree)
+        return tree.children[0]
 
 
-    def expression(self,tree): #Retornar a expressao toda e meter dentro do value???????
+    def expression(self,tree):
         print("treeEXPRESSION",tree)
         self.visit_children(tree)
             
