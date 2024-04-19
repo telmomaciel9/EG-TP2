@@ -165,12 +165,14 @@ class MyInterpreter(Interpreter):
         self.visit_children(tree)
             
     def expressionnumber(self,tree):
-        return (tree.children[0],'NUMBER')
-
+        pass
+    
     def expressionstring(self,tree):
-        return (tree.children[0],'STRING')
+        pass
 
     def expressionname(self,tree):
+        nomeVAR = tree.children[0]
+        self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,self.scope,False)
         return (tree.children[0],'NAME')
 
     def expression_priority(self,tree):
