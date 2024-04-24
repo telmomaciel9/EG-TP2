@@ -31,7 +31,7 @@ function_declaration: type NAME "(" expression ")" ":" program
                     | type NAME "(" assign_statement ")" ":" program
                     | type NAME "(" ")" ":" program
 
-call_function: NAME "(" expression ")"
+call_function: NAME "(" expression* ")"
 
 expression: NUMBER -> expressionnumber
           | STRING -> expressionstring
@@ -95,7 +95,7 @@ pydot__tree_to_png(tree,'lark_test.png')
 
 class MyInterpreter(Interpreter):
     def __init__(self):
-        self.dicVar = {} #key(nameVariavel-Scope|| tipo | Scope || temValue)
+        self.dicVar = {} #key(nameVariavel-Scope|| tipo | Scope || temValue ||  nº de redeclarações)
         self.scope = "Global"
 
     def start(self,tree):
@@ -113,12 +113,17 @@ class MyInterpreter(Interpreter):
         elemento = tree.children[1]
 
         if (isinstance(elemento, Tree) and elemento.data == 'expression'):
-                                                        #tipo,scope,temValue
-            self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,self.scope,True)
+            if f"{nomeVAR}-{self.scope}" in self.dicVar:
+                self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,self.scope,True,self.dicVar[f"{nomeVAR}-{self.scope}"][3]+1)
+            else:   
+                #tipo,scope,temValue, nº de redeclarações
+                self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,self.scope,True,0)
         
         else: #call function
-            nomeFunc = self.visit(elemento)
-            self.dicVar[f"{nomeVAR}-{nomeFunc}"] = (None,nomeFunc,True)
+            self.visit(elemento)
+            if f"{nomeVAR}-{self.scope}" in self.dicVar:
+                self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,{self.scope},True,self.dicVar[f"{nomeVAR}-{self.scope}"][3]+1)
+            self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,self.scope,True,0)
         
 
     def assign_statementtype(self,tree):
@@ -126,19 +131,28 @@ class MyInterpreter(Interpreter):
         nomeVAR = tree.children[1]
         elemento = tree.children[2]
 
-        if  (isinstance(elemento, Tree) and elemento.data == 'expression'):               
-            self.dicVar[f"{nomeVAR}-{self.scope}"] = (typeVAR,self.scope,True)
+        if  (isinstance(elemento, Tree) and elemento.data == 'expression'): 
+            if f"{nomeVAR}-{self.scope}" in self.dicVar:              
+                self.dicVar[f"{nomeVAR}-{self.scope}"] = (typeVAR,self.scope,True,self.dicVar[f"{nomeVAR}-{self.scope}"][3]+1)
+            else:
+                self.dicVar[f"{nomeVAR}-{self.scope}"] = (typeVAR,self.scope,True,0)
         else: #call function
-            nomeFunc = self.visit(tree.children[2])
-            self.dicVar[f"{nomeVAR}-{self.scope}"] = (typeVAR,nomeFunc,True)
+            self.visit(tree.children[2])
+            if f"{nomeVAR}-{self.scope}" in self.dicVar:
+                self.dicVar[f"{nomeVAR}-{self.scope}"] = (typeVAR,self.scope,True,self.dicVar[f"{nomeVAR}-{self.scope}"][3]+1)
+            else:
+                self.dicVar[f"{nomeVAR}-{self.scope}"] = (typeVAR,self.scope,True,0)
 
     def assign_statementtype_only(self,tree):
         typeVAR = tree.children[0]
         nomeVAR = tree.children[1]
-        self.dicVar[f"{nomeVAR}-{self.scope}"] = (typeVAR,self.scope,False)
+        if f"{nomeVAR}-{self.scope}" in self.dicVar:
+            self.dicVar[f"{nomeVAR}-{self.scope}"] = (typeVAR,self.scope,False,self.dicVar[f"{nomeVAR}-{self.scope}"][3]+1)
+        else:
+            self.dicVar[f"{nomeVAR}-{self.scope}"] = (typeVAR,self.scope,False,0)
 
     def assign_statement(self,tree):
-        pass
+        self.visit_children(tree)
 
     def if_statement(self,tree):    
         self.visit_children(tree)
@@ -157,6 +171,7 @@ class MyInterpreter(Interpreter):
 
 
     def call_function(self,tree): #Guardar o NAME 
+        self.globalScope = tree.children[0]
         return tree.children[0]
 
 
@@ -166,14 +181,18 @@ class MyInterpreter(Interpreter):
             
     def expressionnumber(self,tree):
         pass
-    
+
     def expressionstring(self,tree):
         pass
 
     def expressionname(self,tree):
-        nomeVAR = tree.children[0]
-        self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,self.scope,False)
-        return (tree.children[0],'NAME')
+        # nomeVAR = tree.children[0]
+        # if f"{nomeVAR}-{self.scope}" in self.dicVar:
+        #     self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,self.scope,False,self.dicVar[f"{nomeVAR}-{self.scope}"][3]+1)
+        # else:
+        #     self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,self.scope,False)
+        # return (tree.children[0],'NAME')
+        pass
 
     def expression_priority(self,tree):
         self.visit_children(tree)

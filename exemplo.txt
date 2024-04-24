@@ -18,12 +18,7 @@ print(x)
 ####
 
 
-DUVS/NOTAS:
-
-No caso de termos:
-
-                | NAME "=" expression -> assign_statementname
-                | type NAME "=" expression -> assign_statementtype
-
-Como as expressões podem ser quase infinitas, podiamos guardar isso no campo value do mapa e depois calcular o que da para calcular(se necessário) 
--> tinhamos que mudar a GIC para os simbolos nao serem ignorados ou então criar bues alias para saber que simbolo é (soma,div,mulp...)
+redeclaração -> qualquer sitio sem ser expression
+Não-declaração -> expression
+variaveis usadas mas não inicializadas -> Não tem value
+variaveis declaradas e nunca mencionadas -> Tem value mas nunca são redeclaradas ou usadas na expression
