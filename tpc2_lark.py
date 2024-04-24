@@ -180,9 +180,18 @@ void executar_acao(opcao) {
 }
 '''
 
-frase8 = ''''
+frase8 = '''
 
+void teste_somar_elementos() {
+    int set = { 1, 2, 3, 4, 5 } ;
+    somar_elementos(lista);
+}
 
+void teste_adicionar_elemento() {
+    set_original = { 1, 2, 3 };
+    int elemento = 4;
+    adicionar_elemento(original, elemento);
+}
 
 '''
 
@@ -202,7 +211,7 @@ frase8 = ''''
      #       	Funções com retorno e parametros 
 
 p = Lark(grammar)  # cria um objeto parser
-tree = p.parse(frase7)  # retorna uma tree
+tree = p.parse(frase8)  # retorna uma tree
 print(tree)
 print(tree.pretty())
 pydot__tree_to_png(tree, 'lark.png')  # corrigido o nome da função
