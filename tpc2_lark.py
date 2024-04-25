@@ -196,9 +196,7 @@ void teste_adicionar_elemento() {
 '''
 
 
-#Falta fazer
-#Set
-#Seleção????
+
 
 
 #Lançamento do desafio de especificar uma LPI, contendo:
