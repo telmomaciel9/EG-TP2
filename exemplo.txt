@@ -18,7 +18,23 @@ print(x)
 ####
 
 
-redeclaração -> qualquer sitio sem ser expression
-Não-declaração -> expression
-variaveis usadas mas não inicializadas -> Não tem value
-variaveis declaradas e nunca mencionadas -> Tem value mas nunca são redeclaradas ou usadas na expression
+redeclaração -> Está no mapa com tipo e volta a ser declarada com tipo (decl)
+Não-declaração -> Uma vari ́avel mencionada no co ́digo sem ter sido inicialmente declarada.
+variaveis usadas mas não inicializadas -> Uma vari ́avel que esta ́ a ser mencionada como operando de uma opera ̧c ̃ao ou como parametro na chamada de uma fun ̧c ̃ao sem ter valor
+variaveis declaradas e nunca mencionadas -> Variável com tipo mas nunca usada
+
+decl:
+    params->   Tem value, está declarada e scope da função. 
+        Pode a vir a ser redeclarada(), não pode não ser declarada(), é sempre inicializada(false), pode não ser usada().
+    
+    assign_statement->  Tem value, pode não ser declarada e depende.
+        Pode a vir a ser redeclarada(), pode não ser declarada(), pode não ser inicializada(),pode().
+
+    for_statement ->
+    declare_statement -> Não tem value, pode não ser declarada e depende.
+        (),(),(),()
+
+
+
+
+pc fdd mic? 

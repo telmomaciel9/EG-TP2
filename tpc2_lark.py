@@ -1,5 +1,140 @@
-from lark import Lark
+from lark import Lark,Tree
 from lark.tree import pydot__tree_to_png
+from lark.visitors import Interpreter
+
+def comparator(dic,tipoBOOL,declAuxValue,tipoNOVO):
+    tipo = dic[0]
+    temValue = dic[1]
+    boolRedecl = dic[2]
+    bool2 = dic[3]
+    bool3 = dic[4]
+    bool4 = dic[5]
+
+    if(tipoBOOL): # Está a declarar com tipo
+        if(tipo != None): # Já tem tipo então esta a redeclarar
+            dic = (tipoNOVO,temValue,True,bool2,bool3,bool4)
+        
+        else: # Nao tem tipo e está a declarar com tipo, ou seja, foi usada sem tipo
+            dic = (tipoNOVO,temValue,boolRedecl,True,bool3,bool4)
+
+    else: #Está a ser usada!
+        if(tipo != None): # Tem tipo
+            dic = (tipoNOVO,temValue,boolRedecl,bool2,bool3,True)
+
+        if(not(temValue)):
+            dic = (tipoNOVO,temValue,boolRedecl,bool2,True,bool4)
+
+class MyInterpreter(Interpreter):
+    def __init__(self):
+        self.dicVar = {} #key(nameVariavel-Scope|| tipo || temValue || Bool de nª de redlecarações, bool2,bool3, bool4(true=usada) )
+        self.scope = "Global"
+        self.declAuxValue = False
+    
+    def start(self,tree):
+        self.visit_children(tree)
+        return self.dicVar
+
+    def declaration(self,tree): #Define uma função, é preciso guardar a scope
+        for elemento in tree.children:
+            if (isinstance(elemento, Tree) and elemento.data == 'IDENTIFIER'):
+                self.scope = elemento
+                print(f"Scope: {self.scope}")
+        self.visit_children(tree)
+        self.scope = "Global"
+        
+    def params(self,tree):
+        self.declAuxValue = True
+        self.visit_children(tree)
+        self.declAuxValue = False
+
+    def decl(self,tree):
+        nomeVAR = None
+        tipo = tree.children[0]
+        
+        if len(tree.children) == 3:
+            nomeVAR = tree.children[2]
+            tipo = f"{tipo}-{tree.children[1]}"
+        else:
+            nomeVAR = tree.children[1]
+        
+
+        if f"{nomeVAR}-{self.scope}" in self.dicVar:
+            keyObject = self.dicVar[f"{nomeVAR}-{self.scope}"]
+            comparator(keyObject,True,self.declAuxValue,tipo)    
+        else:
+            if(self.declAuxValue):
+                self.dicVar[f"{nomeVAR}-{self.scope}"] = (tipo,True,False,False,False,False)
+            else:
+                self.dicVar[f"{nomeVAR}-{self.scope}"] = (tipo,False,False,False,False,False)
+        
+
+        
+        
+    def declSemTipo(self,tree):
+        nomeVAR = tree.children[0]
+
+        if f"{nomeVAR}-{self.scope}" in self.dicVar:
+            keyObject = self.dicVar[f"{nomeVAR}-{self.scope}"]
+            comparator(keyObject,False,self.declAuxValue)
+        
+        elif(self.declAuxValue): # Veio do assign_statement, ou seja, tem valor mas nao tem tipo
+            self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,True,False,True,False,False)
+        else:                           
+            self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,False,False,True,True,False)
+
+    def statement(self,tree):
+        self.visit_children(tree)
+
+    def body(self,tree):
+        self.visit_children(tree)
+
+    def statement(self,tree):
+        self.visit_children(tree)
+    
+    def if_statement(self,tree):
+        self.visit_children(tree)
+
+    def while_statement(self,tree):
+        self.visit_children(tree)
+
+    def for_statement(self,tree):
+        pass
+
+    def assign_statement(self,tree):
+        self.declAuxValue = True
+        self.visit_children(tree)
+        self.declAuxValue = False
+
+    def print_statement(self,tree):
+        self.visit_children(tree)
+
+    def declare_statement(self,tree):
+        self.visit_children(tree)
+
+    def call_function(self,tree):
+        self.scope = tree.children[0]
+        self.visit_children(tree)
+        self.scope = "Global"
+
+    def return_statement(self,tree):
+        self.visit_children(tree)
+
+    def switch_case_statement(self,tree):
+        self.visit_children(tree)
+
+
+
+
+
+
+    def comp_type(self,tree):
+        return str(tree.children[0])
+
+    def IDENTIFIER(self,tree):
+        return str(tree.children[0])
+
+    def type(self,tree):
+        return str(tree.children[0])
 
 grammar = '''
 start: (declaration | statement)*
@@ -8,7 +143,8 @@ declaration: type comp_type? IDENTIFIER "(" params? ")" "{" body* "}"
 
 params: decl ("," decl)*
 comp_type: ("array" | "list" | "set")
-decl: type comp_type? IDENTIFIER | IDENTIFIER
+decl: type comp_type? IDENTIFIER 
+      | IDENTIFIER 
 
 
 body: statement*
@@ -37,7 +173,7 @@ switch_case_statement: "switch" "(" expr ")" "{" switch_case_branch* "}"
 switch_case_branch: "case" value ":" body* "break" ";"
                   | "default" ":" body* "break" ";"
 
-args: (expr ("," expr)*)?
+args: (expr  ("," expr)*)?
 
 expr: value
     | "(" expr ")"
@@ -209,7 +345,18 @@ void teste_adicionar_elemento() {
      #       	Funções com retorno e parametros 
 
 p = Lark(grammar)  # cria um objeto parser
-tree = p.parse(frase8)  # retorna uma tree
+tree = p.parse(frase)  # retorna uma tree
 print(tree)
 print(tree.pretty())
 pydot__tree_to_png(tree, 'lark.png')  # corrigido o nome da função
+
+
+
+
+
+
+
+
+
+
+# MyInterpreter().visit(tree)
