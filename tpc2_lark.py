@@ -1,8 +1,21 @@
-from lark import Lark,Tree
+from lark import Lark,Tree,Token
 from lark.tree import pydot__tree_to_png
 from lark.visitors import Interpreter
 
-def comparator(dic,tipoBOOL,declAuxValue,tipoNOVO):
+def comparatorIdentifier(dic):
+    tipo = dic[0]
+    temValue = dic[1]
+    boolRedecl = dic[2]
+    bool2 = dic[3]
+    bool3 = dic[4]
+    bool4 = dic[5]
+    if(tipo != None): # Tem tipo
+        dic = (tipo,temValue,boolRedecl,bool2,bool3,True)
+
+    if(not(temValue)):
+        dic = (tipo,temValue,boolRedecl,bool2,True,bool4)
+
+def comparator(dic,tipoBOOL,tipoNOVO=None):
     tipo = dic[0]
     temValue = dic[1]
     boolRedecl = dic[2]
@@ -19,48 +32,61 @@ def comparator(dic,tipoBOOL,declAuxValue,tipoNOVO):
 
     else: #Está a ser usada!
         if(tipo != None): # Tem tipo
-            dic = (tipoNOVO,temValue,boolRedecl,bool2,bool3,True)
+            dic = (tipo,temValue,boolRedecl,bool2,bool3,True)
 
         if(not(temValue)):
-            dic = (tipoNOVO,temValue,boolRedecl,bool2,True,bool4)
+            dic = (tipo,temValue,boolRedecl,bool2,True,bool4)
 
 class MyInterpreter(Interpreter):
     def __init__(self):
         self.dicVar = {} #key(nameVariavel-Scope|| tipo || temValue || Bool de nª de redlecarações, bool2,bool3, bool4(true=usada) )
         self.scope = "Global"
-        self.declAuxValue = False
+        self.declAuxValue = False #saber se vem do assign_statement
     
     def start(self,tree):
+        print("Interpreter started")
         self.visit_children(tree)
         return self.dicVar
 
     def declaration(self,tree): #Define uma função, é preciso guardar a scope
         for elemento in tree.children:
-            if (isinstance(elemento, Tree) and elemento.data == 'IDENTIFIER'):
+            if (isinstance(elemento, Token) and elemento.data == 'IDENTIFIER'):
                 self.scope = elemento
                 print(f"Scope: {self.scope}")
         self.visit_children(tree)
         self.scope = "Global"
-        
-    def params(self,tree):
-        self.declAuxValue = True
+
+    def paramsfunc(self,tree):
         self.visit_children(tree)
-        self.declAuxValue = False
+
+    def declfunc(self,tree):
+        tipo = tree.children[0]
+        
+        nomeVAR = tree.children[2]
+        tipo = f"{tipo}-{tree.children[1]}"
+        
+
+        if f"{nomeVAR}-{self.scope}" in self.dicVar:
+            keyObject = self.dicVar[f"{nomeVAR}-{self.scope}"]
+            comparator(keyObject,True,tipo)    
+        else:
+            self.dicVar[f"{nomeVAR}-{self.scope}"] = (tipo,True,False,False,False,False)
 
     def decl(self,tree):
         nomeVAR = None
         tipo = tree.children[0]
+        print("tipo",tree)
         
         if len(tree.children) == 3:
             nomeVAR = tree.children[2]
             tipo = f"{tipo}-{tree.children[1]}"
         else:
             nomeVAR = tree.children[1]
-        
+        print("nomevar",nomeVAR)
 
         if f"{nomeVAR}-{self.scope}" in self.dicVar:
             keyObject = self.dicVar[f"{nomeVAR}-{self.scope}"]
-            comparator(keyObject,True,self.declAuxValue,tipo)    
+            comparator(keyObject,True,tipo)    
         else:
             if(self.declAuxValue):
                 self.dicVar[f"{nomeVAR}-{self.scope}"] = (tipo,True,False,False,False,False)
@@ -70,12 +96,12 @@ class MyInterpreter(Interpreter):
 
         
         
-    def declSemTipo(self,tree):
+    def declsemtipo(self,tree):
         nomeVAR = tree.children[0]
 
         if f"{nomeVAR}-{self.scope}" in self.dicVar:
             keyObject = self.dicVar[f"{nomeVAR}-{self.scope}"]
-            comparator(keyObject,False,self.declAuxValue)
+            comparator(keyObject,False)
         
         elif(self.declAuxValue): # Veio do assign_statement, ou seja, tem valor mas nao tem tipo
             self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,True,False,True,False,False)
@@ -98,7 +124,7 @@ class MyInterpreter(Interpreter):
         self.visit_children(tree)
 
     def for_statement(self,tree):
-        pass
+        self.visit_children(tree)
 
     def assign_statement(self,tree):
         self.declAuxValue = True
@@ -122,10 +148,65 @@ class MyInterpreter(Interpreter):
     def switch_case_statement(self,tree):
         self.visit_children(tree)
 
+    def switch_case_branch(self,tree):
+        self.visit_children(tree)
 
+    def args(self,tree):
+        self.visit_children(tree)
 
+    def expr(self,tree): 
+        self.visit_children(tree)
 
+    def value(self,tree):
+        if(isinstance(tree.children[0], Token)) and tree.children[0].type == 'IDENTIFIER':
+            value = tree.children[0]
+            if f"{value}-{self.scope}" in self.dicVar:
+                dic = self.dicVar[f"{value}-{self.scope}"]
+                comparatorIdentifier(dic)
+            else:
+                self.dicVar[f"{value}-{self.scope}"] = (None,False,False,True,True,False)
+        else:   
+            self.visit_children(tree)
 
+    def array_access(self,tree):
+        self.visit_children(tree)
+
+    def set_access(self,tree):
+        self.visit_children(tree)
+
+    def binary_op(self,tree):
+        pass
+
+    def unary_op(self,tree):
+        pass
+
+    def binary_op_priority(self,tree): 
+        pass
+
+    def int(self,tree):
+        return int(tree.children[0])
+    
+    def string(self,tree):
+        return str(tree.children[0])    
+    
+    def tuple(self,tree):
+        for elemento in tree.children:
+            if (isinstance(elemento, Tree) and elemento.type == 'IDENTIFIER'):
+                value = tree.children[0]
+                if f"{value}-{self.scope}" in self.dicVar:
+                    dic = self.dicVar[f"{value}-{self.scope}"]
+                    comparatorIdentifier(dic)
+                else:
+                    self.dicVar[f"{value}-{self.scope}"] = (None,False,False,True,True,False)
+
+    def bool(self,tree):
+        return bool(tree.children[0])
+    
+    def array(self,tree):
+        self.visit_children(tree)
+    
+    def set(self,tree):
+        self.visit_children(tree)
 
     def comp_type(self,tree):
         return str(tree.children[0])
@@ -134,18 +215,21 @@ class MyInterpreter(Interpreter):
         return str(tree.children[0])
 
     def type(self,tree):
+        print("TreeType",tree.children[0])
         return str(tree.children[0])
 
 grammar = '''
 start: (declaration | statement)*
 
-declaration: type comp_type? IDENTIFIER "(" params? ")" "{" body* "}"
+declaration: type comp_type? IDENTIFIER "(" paramsfunc? ")" "{" body* "}"
 
-params: decl ("," decl)*
+paramsfunc: declfunc ("," declfunc)*
+
 comp_type: ("array" | "list" | "set")
-decl: type comp_type? IDENTIFIER 
-      | IDENTIFIER 
 
+declfunc: type comp_type? IDENTIFIER 
+decl: type comp_type? IDENTIFIER 
+      | IDENTIFIER  -> declsemtipo
 
 body: statement*
 
@@ -181,7 +265,7 @@ expr: value
     | expr binary_op expr
     | unary_op expr
 
-value: IDENTIFIER | attribute | INTEGER | STRING
+value: IDENTIFIER | tuple | bool | array | set | INTEGER | STRING
 
 binary_op: "==" | "!=" | "<" | ">" | "<=" | ">=" | "+" | "-" | "or" | binary_op_priority
 binary_op_priority:"*" | "/" | "%" | "^" | "and"
@@ -197,14 +281,12 @@ type: "int"
     | "tuple"
     | "void"
 
-attribute : int | string | tuple | bool | array | set
-
 int: INTEGER 
 string: STRING
-tuple: "(" (STRING | INTEGER) ("," (STRING | INTEGER))* ")"
+tuple: "(" (STRING | INTEGER | IDENTIFIER) ("," (STRING | INTEGER | IDENTIFIER))* ")"
 bool: "true" | "false"
-array: "[" attribute ("," attribute)* "]"
-set: "{" attribute ("," attribute)* "}"
+array: "[" value ("," value)* "]"
+set: "{" value ("," value)* "}"
 
 
 STRING: /"[^"]*"|'[^']*'/
@@ -216,9 +298,18 @@ INTEGER: /\d+/
 
 '''
 
-frase = '''
+frase0 = '''
 
 int s = a + b;
+
+'''
+
+frase = '''
+s;
+
+int s = a + b;
+
+int s;
 
 int sum(int a, int b) {
     int s = a + b;
@@ -344,8 +435,10 @@ void teste_adicionar_elemento() {
 	#	Opers: +-*/%^    ;  []  ; . (seleção de 1campo) ; cons, snoc, in, head/tail ->>>
      #       	Funções com retorno e parametros 
 
+print("INICIO")
 p = Lark(grammar)  # cria um objeto parser
-tree = p.parse(frase)  # retorna uma tree
+print("Passou")
+tree = p.parse(frase0)  # retorna uma tree
 print(tree)
 print(tree.pretty())
 pydot__tree_to_png(tree, 'lark.png')  # corrigido o nome da função
@@ -358,5 +451,51 @@ pydot__tree_to_png(tree, 'lark.png')  # corrigido o nome da função
 
 
 
+print("interpreter")
+dic = MyInterpreter().visit(tree)
 
-# MyInterpreter().visit(tree)
+#exercicio 1
+listaRedeclaracoes = []
+listaNaoRedeclaracoes = []
+listaNaoUsadas = []
+listaNaoMencionadas = []
+
+for key, value in dic.items():
+    tipo = value[0]
+    boolRedecl = value[2]
+    bool2 = value[3]
+    bool3 = value[4]
+    bool4 = value[5]
+    if(boolRedecl):
+        listaRedeclaracoes.append(key)
+    if(bool2):
+        listaNaoRedeclaracoes.append(key)
+    if(bool3):
+        listaNaoUsadas.append(key)
+    if not(bool4):
+
+        listaNaoMencionadas.append(key)
+
+print("Variaveis redeclaradas: ", listaRedeclaracoes)
+print("Variaveis nao redeclaradas: ", listaNaoRedeclaracoes)
+print("Variaveis nao usadas: ", listaNaoUsadas)
+print("Variaveis nao mencionadas: ", listaNaoMencionadas)
+
+#exericio 2
+dicTipos = {}
+for key, value in dic.items():
+    print(f"{key} : {value}")
+    tipo = value[0]
+    dic[tipo] = key
+
+print("Dicionario de tipos: {dicTipos}")
+
+
+#exercicio 3
+
+
+
+#exercicio 4
+
+
+#exercicio 5
