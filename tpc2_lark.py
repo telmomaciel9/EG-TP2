@@ -60,10 +60,11 @@ class MyInterpreter(Interpreter):
         self.visit_children(tree)
 
     def declfunc(self,tree):
-        tipo = tree.children[0]
+        tipo = self.visit(tree.children[0])
         
         nomeVAR = tree.children[2]
-        tipo = f"{tipo}-{tree.children[1]}"
+        tipoCOMP = self.visit(tree.children[1])
+        tipo = f"{tipo}-{tipoCOMP}"
         
 
         if f"{nomeVAR}-{self.scope}" in self.dicVar:
@@ -74,12 +75,13 @@ class MyInterpreter(Interpreter):
 
     def decl(self,tree):
         nomeVAR = None
-        tipo = tree.children[0]
-        print("tipo",tree)
+        tipo = self.visit(tree.children[0])
+        print("tipo",tipo)
         
         if len(tree.children) == 3:
             nomeVAR = tree.children[2]
-            tipo = f"{tipo}-{tree.children[1]}"
+            compTIPO = self.visit(tree.children[1])
+            tipo = f"{tipo}-{compTIPO}"
         else:
             nomeVAR = tree.children[1]
         print("nomevar",nomeVAR)
@@ -164,7 +166,7 @@ class MyInterpreter(Interpreter):
                 dic = self.dicVar[f"{value}-{self.scope}"]
                 comparatorIdentifier(dic)
             else:
-                self.dicVar[f"{value}-{self.scope}"] = (None,False,False,True,True,False)
+                self.dicVar[f"{value}-{self.scope}"] = (None,False,False,True,True,False) #variaveis declaradas mas nunca mencionadas
         else:   
             self.visit_children(tree)
 
@@ -215,7 +217,6 @@ class MyInterpreter(Interpreter):
         return str(tree.children[0])
 
     def type(self,tree):
-        print("TreeType",tree.children[0])
         return str(tree.children[0])
 
 grammar = '''
@@ -225,7 +226,7 @@ declaration: type comp_type? IDENTIFIER "(" paramsfunc? ")" "{" body* "}"
 
 paramsfunc: declfunc ("," declfunc)*
 
-comp_type: ("array" | "list" | "set")
+comp_type: (ARRAY | LIST | SET)
 
 declfunc: type comp_type? IDENTIFIER 
 decl: type comp_type? IDENTIFIER 
@@ -274,12 +275,22 @@ unary_op: "++" | "--"
 array_access: IDENTIFIER "[" expr "]"
 set_access: IDENTIFIER "{" expr "}"
 
-type: "int"
-    | "string"
-    | "bool"
-    | "boolean"
-    | "tuple"
-    | "void"
+type: INT
+    | STRINGG
+    | BOOL
+    | BOOLEAN
+    | TUPLE
+    | VOID
+
+INT: "int"
+STRINGG: "string"
+BOOL: "bool"
+BOOLEAN: "boolean"
+TUPLE: "tuple"
+VOID: "void"
+ARRAY: "array"
+LIST: "list"
+SET: "set"
 
 int: INTEGER 
 string: STRING
@@ -457,7 +468,7 @@ dic = MyInterpreter().visit(tree)
 #exercicio 1
 listaRedeclaracoes = []
 listaNaoRedeclaracoes = []
-listaNaoUsadas = []
+listaNaoInicializadas = []
 listaNaoMencionadas = []
 
 for key, value in dic.items():
@@ -471,15 +482,15 @@ for key, value in dic.items():
     if(bool2):
         listaNaoRedeclaracoes.append(key)
     if(bool3):
-        listaNaoUsadas.append(key)
+        listaNaoInicializadas.append(key)
     if not(bool4):
 
         listaNaoMencionadas.append(key)
 
 print("Variaveis redeclaradas: ", listaRedeclaracoes)
-print("Variaveis nao redeclaradas: ", listaNaoRedeclaracoes)
-print("Variaveis nao usadas: ", listaNaoUsadas)
-print("Variaveis nao mencionadas: ", listaNaoMencionadas)
+print("Variaveis não declaradas: ", listaNaoRedeclaracoes)
+print("Variaveis usadas mas não inicializadas(sem valor): ", listaNaoInicializadas)
+print("Variaveis nao mencionadas mas declaradas: ", listaNaoMencionadas)
 
 #exericio 2
 dicTipos = {}
