@@ -1,6 +1,27 @@
 from lark import Lark,Tree,Token
 from lark.tree import pydot__tree_to_png
 from lark.visitors import Interpreter
+import html
+
+def check_nested_ifs(node):
+    nested_ifs = []
+
+    # Função auxiliar para percorrer a árvore e identificar ifs aninhados
+    def traverse(node):
+        if isinstance(node, Tree) and node.data == 'if_statement':
+            # Verifica se o if atual tem um if aninhado dentro dele
+            if any(isinstance(child, Tree) and child.data == 'if_statement' for child in node.children):
+                nested_ifs.append(node)
+
+        # Percorre os nós filhos recursivamente
+        if isinstance(node, Tree):
+            for child in node.children:
+                traverse(child)
+
+    # Inicia a travessia da árvore
+    traverse(node)
+
+    return nested_ifs
 
 def comparatorIdentifier(dic):
     tipo = dic[0]
@@ -9,13 +30,17 @@ def comparatorIdentifier(dic):
     bool2 = dic[3]
     bool3 = dic[4]
     bool4 = dic[5]
+    
     if(tipo != None): # Tem tipo
-        dic = (tipo,temValue,boolRedecl,bool2,bool3,True)
-
+        bool4 = True
+    
     if(not(temValue)):
-        dic = (tipo,temValue,boolRedecl,bool2,True,bool4)
+        bool3 = True
+    
+    dic = (tipo,temValue,boolRedecl,bool2,bool3,bool4)
+    return dic
 
-def comparator(dic,tipoBOOL,tipoNOVO=None):
+def comparator(dic,tipoBOOL,tipoNOVO,declAuxValue):
     tipo = dic[0]
     temValue = dic[1]
     boolRedecl = dic[2]
@@ -30,29 +55,47 @@ def comparator(dic,tipoBOOL,tipoNOVO=None):
         else: # Nao tem tipo e está a declarar com tipo, ou seja, foi usada sem tipo
             dic = (tipoNOVO,temValue,boolRedecl,True,bool3,bool4)
 
+        return dic
     else: #Está a ser usada!
+
+
         if(tipo != None): # Tem tipo
-            dic = (tipo,temValue,boolRedecl,bool2,bool3,True)
+            bool4 = True
 
         if(not(temValue)):
-            dic = (tipo,temValue,boolRedecl,bool2,True,bool4)
+            if declAuxValue:
+                temValue = True
+            else:
+                bool3 = True
+
+        dic = (tipo,temValue,boolRedecl,bool2,bool3,bool4)
+
+        return dic
 
 class MyInterpreter(Interpreter):
     def __init__(self):
         self.dicVar = {} #key(nameVariavel-Scope|| tipo || temValue || Bool de nª de redlecarações, bool2,bool3, bool4(true=usada) )
-        self.scope = "Global"
+        self.estrutura = False
+        self.estruturasControlo = 0
         self.declAuxValue = False #saber se vem do assign_statement
+        self.boolIF = False
+        self.ifsMerge = 0
+        self.nested_ifs = []  # Lista para armazenar os ifs aninhados
+        self.dicInstrucoes = {'atribuicoes': 0, 
+                                'leitura': 0,
+                                'condicionais': 0,
+                                'ciclicas': 0}
     
     def start(self,tree):
         print("Interpreter started")
         self.visit_children(tree)
-        return self.dicVar
+        print(self.nested_ifs)
+        return self.dicVar, self.dicInstrucoes, self.ifsMerge, self.estruturasControlo
 
     def declaration(self,tree): #Define uma função, é preciso guardar a scope
         for elemento in tree.children:
-            if (isinstance(elemento, Token) and elemento.data == 'IDENTIFIER'):
+            if (isinstance(elemento, Token) and elemento.type == 'IDENTIFIER'):
                 self.scope = elemento
-                print(f"Scope: {self.scope}")
         self.visit_children(tree)
         self.scope = "Global"
 
@@ -62,33 +105,37 @@ class MyInterpreter(Interpreter):
     def declfunc(self,tree):
         tipo = self.visit(tree.children[0])
         
-        nomeVAR = tree.children[2]
-        tipoCOMP = self.visit(tree.children[1])
-        tipo = f"{tipo}-{tipoCOMP}"
+        if len(tree.children) == 3:
+            nomeVAR = str(tree.children[2])
+            compTIPO = self.visit(tree.children[1])
+            tipo = f"{tipo}-{compTIPO}"
+        else:
+            nomeVAR = str(tree.children[1])
         
 
         if f"{nomeVAR}-{self.scope}" in self.dicVar:
             keyObject = self.dicVar[f"{nomeVAR}-{self.scope}"]
-            comparator(keyObject,True,tipo)    
+            v = comparator(keyObject,True,tipo)   
+            self.dicVar[f"{nomeVAR}-{self.scope}"] = v 
         else:
             self.dicVar[f"{nomeVAR}-{self.scope}"] = (tipo,True,False,False,False,False)
 
     def decl(self,tree):
         nomeVAR = None
         tipo = self.visit(tree.children[0])
-        print("tipo",tipo)
         
         if len(tree.children) == 3:
-            nomeVAR = tree.children[2]
+            nomeVAR = str(tree.children[2])
             compTIPO = self.visit(tree.children[1])
             tipo = f"{tipo}-{compTIPO}"
         else:
             nomeVAR = tree.children[1]
-        print("nomevar",nomeVAR)
 
         if f"{nomeVAR}-{self.scope}" in self.dicVar:
             keyObject = self.dicVar[f"{nomeVAR}-{self.scope}"]
-            comparator(keyObject,True,tipo)    
+            v = comparator(keyObject,True,tipo,self.declAuxValue)  
+            self.dicVar[f"{nomeVAR}-{self.scope}"] = v
+
         else:
             if(self.declAuxValue):
                 self.dicVar[f"{nomeVAR}-{self.scope}"] = (tipo,True,False,False,False,False)
@@ -99,11 +146,12 @@ class MyInterpreter(Interpreter):
         
         
     def declsemtipo(self,tree):
-        nomeVAR = tree.children[0]
+        nomeVAR = str(tree.children[0])
 
         if f"{nomeVAR}-{self.scope}" in self.dicVar:
             keyObject = self.dicVar[f"{nomeVAR}-{self.scope}"]
-            comparator(keyObject,False)
+            v = comparator(keyObject,False,None,self.declAuxValue)
+            self.dicVar[f"{nomeVAR}-{self.scope}"] = v
         
         elif(self.declAuxValue): # Veio do assign_statement, ou seja, tem valor mas nao tem tipo
             self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,True,False,True,False,False)
@@ -119,16 +167,56 @@ class MyInterpreter(Interpreter):
     def statement(self,tree):
         self.visit_children(tree)
     
-    def if_statement(self,tree):
-        self.visit_children(tree)
+    def if_statement(self,tree): # exp body body?
+        if self.estrutura:
+            self.estruturasControlo += 1
+        self.dicInstrucoes['condicionais'] += 1
+
+        print("TREE", tree)
+
+        self.nested_ifs = check_nested_ifs(tree)
+
+        if(self.boolIF):
+            self.ifsMerge += 1
+        self.visit(tree.children[0])
+
+        self.boolIF = True
+        self.visit(tree.children[1])
+        self.boolIF = False
+
+        if len(tree.children) == 3:
+            self.visit(tree.children[2])
+        
+        self.estrutura = True
+        self.visit(tree.children[1])  # Visita novamente o corpo do if para verificar aninhamentos
+        self.estrutura = False
+        
 
     def while_statement(self,tree):
+        if self.estrutura:
+            self.estruturasControlo += 1
+        
+        self.dicInstrucoes['ciclicas'] += 1
+    
+        self.estrutura = True
         self.visit_children(tree)
+        self.estrutura = False
+        
 
     def for_statement(self,tree):
+        if self.estrutura:
+            self.estruturasControlo += 1
+        
+        self.dicInstrucoes['ciclicas'] += 1
+        self.dicInstrucoes['atribuicoes'] += 1
+        self.dicInstrucoes['leitura'] += 1
+
+        self.estrutura = True
         self.visit_children(tree)
+        self.estrutura = False
 
     def assign_statement(self,tree):
+        self.dicInstrucoes['atribuicoes'] += 1
         self.declAuxValue = True
         self.visit_children(tree)
         self.declAuxValue = False
@@ -140,15 +228,22 @@ class MyInterpreter(Interpreter):
         self.visit_children(tree)
 
     def call_function(self,tree):
-        self.scope = tree.children[0]
         self.visit_children(tree)
-        self.scope = "Global"
+
 
     def return_statement(self,tree):
         self.visit_children(tree)
 
     def switch_case_statement(self,tree):
+        if self.estrutura:
+            self.estruturasControlo += 1
+        
+        self.dicInstrucoes['condicionais'] += 1
         self.visit_children(tree)
+
+        self.estrutura = True
+        self.visit(tree.children[1])  # Visita novamente o corpo do switch_case para verificar aninhamentos
+        self.estrutura = False
 
     def switch_case_branch(self,tree):
         self.visit_children(tree)
@@ -160,13 +255,17 @@ class MyInterpreter(Interpreter):
         self.visit_children(tree)
 
     def value(self,tree):
+
         if(isinstance(tree.children[0], Token)) and tree.children[0].type == 'IDENTIFIER':
-            value = tree.children[0]
+
+            self.dicInstrucoes['leitura'] += 1
+            value = str(tree.children[0])
             if f"{value}-{self.scope}" in self.dicVar:
                 dic = self.dicVar[f"{value}-{self.scope}"]
-                comparatorIdentifier(dic)
+                v = comparatorIdentifier(dic)
+                self.dicVar[f"{value}-{self.scope}"] = v
             else:
-                self.dicVar[f"{value}-{self.scope}"] = (None,False,False,True,True,False) #variaveis declaradas mas nunca mencionadas
+                self.dicVar[f"{value}-{self.scope}"] = (None,False,False,True,True,False) 
         else:   
             self.visit_children(tree)
 
@@ -186,23 +285,26 @@ class MyInterpreter(Interpreter):
         pass
 
     def int(self,tree):
-        return int(tree.children[0])
+        pass
     
     def string(self,tree):
-        return str(tree.children[0])    
+        pass
     
     def tuple(self,tree):
         for elemento in tree.children:
-            if (isinstance(elemento, Tree) and elemento.type == 'IDENTIFIER'):
-                value = tree.children[0]
+            if (isinstance(elemento, Token) and elemento.type == 'IDENTIFIER'):
+                value = str(elemento)
+
                 if f"{value}-{self.scope}" in self.dicVar:
                     dic = self.dicVar[f"{value}-{self.scope}"]
-                    comparatorIdentifier(dic)
+                    v = comparatorIdentifier(dic)
+                    self.dicVar[f"{value}-{self.scope}"] = v
+
                 else:
                     self.dicVar[f"{value}-{self.scope}"] = (None,False,False,True,True,False)
 
     def bool(self,tree):
-        return bool(tree.children[0])
+        pass
     
     def array(self,tree):
         self.visit_children(tree)
@@ -214,10 +316,13 @@ class MyInterpreter(Interpreter):
         return str(tree.children[0])
 
     def IDENTIFIER(self,tree):
-        return str(tree.children[0])
+        return tree.children[0]
 
     def type(self,tree):
         return str(tree.children[0])
+    
+    def INTEGER(self,tree):
+        pass
 
 grammar = '''
 start: (declaration | statement)*
@@ -244,9 +349,9 @@ statement: if_statement
     | return_statement ";"
     | switch_case_statement 
 
-if_statement: "if" "(" expr ")" "{" body* "}" ("else" "{" body* "}")?
-while_statement: "while" "(" expr ")" "{" body* "}"
-for_statement: "for" "(" assign_statement ";" expr ";" decl unary_op ")" "{" body* "}"
+if_statement: "if" "(" expr ")" "{" body "}" ("else" "{" body "}")?
+while_statement: "while" "(" expr ")" "{" body "}"
+for_statement: "for" "(" assign_statement ";" expr ";" decl unary_op ")" "{" body "}"
 assign_statement: decl "=" (expr | call_function)
 print_statement: "print" "(" expr ")"
 declare_statement: decl
@@ -266,7 +371,7 @@ expr: value
     | expr binary_op expr
     | unary_op expr
 
-value: IDENTIFIER | tuple | bool | array | set | INTEGER | STRING
+value: BOOOL | IDENTIFIER | tuple | array | set | INTEGER | STRING 
 
 binary_op: "==" | "!=" | "<" | ">" | "<=" | ">=" | "+" | "-" | "or" | binary_op_priority
 binary_op_priority:"*" | "/" | "%" | "^" | "and"
@@ -281,6 +386,7 @@ type: INT
     | BOOLEAN
     | TUPLE
     | VOID
+    | FLOAT
 
 INT: "int"
 STRINGG: "string"
@@ -291,15 +397,16 @@ VOID: "void"
 ARRAY: "array"
 LIST: "list"
 SET: "set"
+FLOAT: "float"
 
 int: INTEGER 
 string: STRING
-tuple: "(" (STRING | INTEGER | IDENTIFIER) ("," (STRING | INTEGER | IDENTIFIER))* ")"
+tuple: "(" (IDENTIFIER | STRING | INTEGER) ("," (IDENTIFIER | INTEGER | STRING))* ")"
 bool: "true" | "false"
 array: "[" value ("," value)* "]"
 set: "{" value ("," value)* "}"
 
-
+BOOOL: /(TRUE|FALSE)/
 STRING: /"[^"]*"|'[^']*'/
 IDENTIFIER: /[a-zA-Z_]\w*/
 INTEGER: /\d+/
@@ -312,6 +419,11 @@ INTEGER: /\d+/
 frase0 = '''
 
 int s = a + b;
+
+int sum(int a, int b) {
+    int s = a + b;
+    return s;
+}
 
 '''
 
@@ -349,6 +461,14 @@ void list_sum2(int array a) {
     int counter = 0;
     for (inc = 0; inc < 10; inc++) {
         counter = counter + a[inc];
+        for (inc = 0; inc < 10; inc++) {
+            while (inc < 10) {
+       while (inc < 10) {
+        inc = inc + 1;
+    }
+    }
+        counter = counter + a[inc];
+    }
     }
     print(counter);
 }
@@ -368,10 +488,21 @@ void last(int list a, int b) {
 frase5 = '''
 
 string word(string a, string b) {
-    boolean in = false;
+    boolean in = FALSE;
+    int inc = 0;
+    int inc = 1;
     string value;
     if ( a * (a + b) ) {
-        in = true;
+        if (a == b) {
+
+        }
+
+        if (in) {
+             if (in) {
+            }
+        }
+        
+        in = TRUE;
         value = a;
     } else {
         value = "diff";
@@ -386,26 +517,32 @@ frase6 = '''
 
 
 void teste_somar_elementos() {
-    int array = [1, 2, 3, 4, 5];
+    int array lista = [1, c, 3, 4, 5];
     somar_elementos(lista);
 }
 
 void teste_adicionar_elemento() {
     lista_original = [1, 2, 3];
     int elemento = 4;
-    adicionar_elemento(original, elemento);
+    adicionar_elemento(lista_original, elemento);
 }
 
 '''
 
 frase7 = '''
 
-void executar_acao(opcao) {
+void executar_acao(int opcao) {
     switch (opcao) {
         case 1:
+            for (int i = 0; i < 10; i++) {
+                for (int i = 0; i < 10; i++) {
+                }
+            }
             print("Executando acao 1");
             break;
         case 2:
+            for (int i = 0; i < 10; i++) {
+            }
             print("Executando acao 2");
             break;
         case 3:
@@ -449,7 +586,7 @@ void teste_adicionar_elemento() {
 print("INICIO")
 p = Lark(grammar)  # cria um objeto parser
 print("Passou")
-tree = p.parse(frase0)  # retorna uma tree
+tree = p.parse(frase5)  # retorna uma tree
 print(tree)
 print(tree.pretty())
 pydot__tree_to_png(tree, 'lark.png')  # corrigido o nome da função
@@ -463,8 +600,11 @@ pydot__tree_to_png(tree, 'lark.png')  # corrigido o nome da função
 
 
 print("interpreter")
-dic = MyInterpreter().visit(tree)
+dic,dicCenas, ifs, estruturasControlo = MyInterpreter().visit(tree)
 
+print("Estruturas de controlo:", estruturasControlo)
+print(dicCenas)
+print("ifs",ifs)
 #exercicio 1
 listaRedeclaracoes = []
 listaNaoRedeclaracoes = []
@@ -477,14 +617,13 @@ for key, value in dic.items():
     bool2 = value[3]
     bool3 = value[4]
     bool4 = value[5]
-    if(boolRedecl):
+    if (boolRedecl):
         listaRedeclaracoes.append(key)
-    if(bool2):
+    if (bool2):
         listaNaoRedeclaracoes.append(key)
-    if(bool3):
+    if (bool3):
         listaNaoInicializadas.append(key)
-    if not(bool4):
-
+    if tipo != None and not (bool4):
         listaNaoMencionadas.append(key)
 
 print("Variaveis redeclaradas: ", listaRedeclaracoes)
@@ -497,9 +636,12 @@ dicTipos = {}
 for key, value in dic.items():
     print(f"{key} : {value}")
     tipo = value[0]
-    dic[tipo] = key
+    if tipo not in dicTipos:
+        dicTipos[tipo] = [key]
+    else:
+        dicTipos[tipo].append(key)
 
-print("Dicionario de tipos: {dicTipos}")
+print(f"Dicionario de tipos: {dicTipos}")
 
 
 #exercicio 3
@@ -509,4 +651,55 @@ print("Dicionario de tipos: {dicTipos}")
 #exercicio 4
 
 
-#exercicio 5
+#HTML
+
+
+
+# Assuming the data is as follows:
+
+
+struturasControlo = dicCenas
+
+section4 = estruturasControlo
+section5 = ifs
+
+# Create the HTML file
+with open('output.html', 'w') as f:
+    f.write("<html><body>")
+
+    # Section 1
+    f.write("<h1>Section 1</h1>")
+    for lista, name in zip([listaRedeclaracoes, listaNaoRedeclaracoes, listaNaoInicializadas, listaNaoMencionadas],
+                        ['listaRedeclaracoes', 'listaNaoRedeclaracoes', 'listaNaoInicializadas', 'listaNaoMencionadas']):
+        f.write(f"<h2>{name}</h2>")
+        f.write("<table>")
+        for item in lista:
+            f.write(f"<tr><td>{item}</td></tr>")
+        f.write("</table>")
+
+    # Section 2
+    f.write("<h1>Section 2</h1>")
+    f.write("<table>")
+    for key, values in dicTipos.items():
+        f.write(f"<tr><th>{key}</th>")
+        for value in values:
+            f.write(f"<td>{value}</td>")
+        f.write("</tr>")
+    f.write("</table>")
+
+    # Section 3
+    f.write("<h1>Section 3</h1>")
+    f.write("<table>")
+    for key, value in struturasControlo.items():
+        f.write(f"<tr><td>{key}</td><td>{value}</td></tr>")
+    f.write("</table>")
+
+    # Section 4
+    f.write("<h1>Section 4</h1>")
+    f.write(f"<p>{section4}</p>")
+
+    # Section 5
+    f.write("<h1>Section 5</h1>")
+    f.write(f"<p>{section5}</p>")
+
+    f.write("</body></html>")
