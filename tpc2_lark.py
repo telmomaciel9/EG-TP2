@@ -3,25 +3,6 @@ from lark.tree import pydot__tree_to_png
 from lark.visitors import Interpreter
 import html
 
-def check_nested_ifs(node):
-    nested_ifs = []
-
-    # Função auxiliar para percorrer a árvore e identificar ifs aninhados
-    def traverse(node):
-        if isinstance(node, Tree) and node.data == 'if_statement':
-            # Verifica se o if atual tem um if aninhado dentro dele
-            if any(isinstance(child, Tree) and child.data == 'if_statement' for child in node.children):
-                nested_ifs.append(node)
-
-        # Percorre os nós filhos recursivamente
-        if isinstance(node, Tree):
-            for child in node.children:
-                traverse(child)
-
-    # Inicia a travessia da árvore
-    traverse(node)
-
-    return nested_ifs
 
 def comparatorIdentifier(dic):
     tipo = dic[0]
@@ -80,16 +61,15 @@ class MyInterpreter(Interpreter):
         self.declAuxValue = False #saber se vem do assign_statement
         self.boolIF = False
         self.ifsMerge = 0
-        self.nested_ifs = []  # Lista para armazenar os ifs aninhados
         self.dicInstrucoes = {'atribuicoes': 0, 
                                 'leitura': 0,
                                 'condicionais': 0,
                                 'ciclicas': 0}
+        self.scope = "Global"
     
     def start(self,tree):
         print("Interpreter started")
         self.visit_children(tree)
-        print(self.nested_ifs)
         return self.dicVar, self.dicInstrucoes, self.ifsMerge, self.estruturasControlo
 
     def declaration(self,tree): #Define uma função, é preciso guardar a scope
@@ -141,10 +121,7 @@ class MyInterpreter(Interpreter):
                 self.dicVar[f"{nomeVAR}-{self.scope}"] = (tipo,True,False,False,False,False)
             else:
                 self.dicVar[f"{nomeVAR}-{self.scope}"] = (tipo,False,False,False,False,False)
-        
 
-        
-        
     def declsemtipo(self,tree):
         nomeVAR = str(tree.children[0])
 
@@ -171,10 +148,6 @@ class MyInterpreter(Interpreter):
         if self.estrutura:
             self.estruturasControlo += 1
         self.dicInstrucoes['condicionais'] += 1
-
-        print("TREE", tree)
-
-        self.nested_ifs = check_nested_ifs(tree)
 
         if(self.boolIF):
             self.ifsMerge += 1
@@ -270,9 +243,23 @@ class MyInterpreter(Interpreter):
             self.visit_children(tree)
 
     def array_access(self,tree):
+        value = str(tree.children[0])
+        if f"{value}-{self.scope}" in self.dicVar:
+            dic = self.dicVar[f"{value}-{self.scope}"]
+            v = comparatorIdentifier(dic)
+            self.dicVar[f"{value}-{self.scope}"] = v
+        else:
+            self.dicVar[f"{value}-{self.scope}"] = (None,True,False,True,False,False)
         self.visit_children(tree)
 
     def set_access(self,tree):
+        value = str(tree.children[0])
+        if f"{value}-{self.scope}" in self.dicVar:
+            dic = self.dicVar[f"{value}-{self.scope}"]
+            v = comparatorIdentifier(dic)
+            self.dicVar[f"{value}-{self.scope}"] = v
+        else:
+            self.dicVar[f"{value}-{self.scope}"] = (None,True,False,True,False,False)
         self.visit_children(tree)
 
     def binary_op(self,tree):
@@ -348,6 +335,7 @@ statement: if_statement
     | call_function ";"
     | return_statement ";"
     | switch_case_statement 
+    | access ";"
 
 if_statement: "if" "(" expr ")" "{" body "}" ("else" "{" body "}")?
 while_statement: "while" "(" expr ")" "{" body "}"
@@ -357,6 +345,7 @@ print_statement: "print" "(" expr ")"
 declare_statement: decl
 call_function: IDENTIFIER "(" args ")"
 return_statement: "return" expr
+access: array_access | set_access
 
 switch_case_statement: "switch" "(" expr ")" "{" switch_case_branch* "}"
 
@@ -367,7 +356,7 @@ args: (expr  ("," expr)*)?
 
 expr: value
     | "(" expr ")"
-    | array_access
+    | access 
     | expr binary_op expr
     | unary_op expr
 
@@ -377,8 +366,8 @@ binary_op: "==" | "!=" | "<" | ">" | "<=" | ">=" | "+" | "-" | "or" | binary_op_
 binary_op_priority:"*" | "/" | "%" | "^" | "and"
 unary_op: "++" | "--"
 
-array_access: IDENTIFIER "[" expr "]"
-set_access: IDENTIFIER "{" expr "}"
+array_access: IDENTIFIER "[" value "]"
+set_access: IDENTIFIER "{" value   "}"
 
 type: INT
     | STRINGG
@@ -403,8 +392,8 @@ int: INTEGER
 string: STRING
 tuple: "(" (IDENTIFIER | STRING | INTEGER) ("," (IDENTIFIER | INTEGER | STRING))* ")"
 bool: "true" | "false"
-array: "[" value ("," value)* "]"
-set: "{" value ("," value)* "}"
+array: "[" value? ("," value)* "]"
+set: "{" value? ("," value)* "}"
 
 BOOOL: /(TRUE|FALSE)/
 STRING: /"[^"]*"|'[^']*'/
@@ -417,13 +406,13 @@ INTEGER: /\d+/
 '''
 
 frase0 = '''
+int array lista = [1, c, 3, 4, 5];
 
-int s = a + b;
+int array ab = [];
 
-int sum(int a, int b) {
-    int s = a + b;
-    return s;
-}
+b{a};
+a[inc];
+counter =  a[inc];
 
 '''
 
@@ -586,7 +575,7 @@ void teste_adicionar_elemento() {
 print("INICIO")
 p = Lark(grammar)  # cria um objeto parser
 print("Passou")
-tree = p.parse(frase5)  # retorna uma tree
+tree = p.parse(frase0)  # retorna uma tree
 print(tree)
 print(tree.pretty())
 pydot__tree_to_png(tree, 'lark.png')  # corrigido o nome da função
