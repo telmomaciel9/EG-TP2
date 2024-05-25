@@ -66,10 +66,17 @@ class MyInterpreter(Interpreter):
                                 'condicionais': 0,
                                 'ciclicas': 0}
         self.scope = "Global"
+        self.stringGrafo = f"""
+        """
+
     
     def start(self,tree):
         print("Interpreter started")
-        self.visit_children(tree)
+        for elemento in tree.children:
+            string = self.visit(elemento)
+            self.stringGrafo += string
+
+        self.stringGrafo += "digraph Programa{\n" + self.stringGrafografo + "\n}" #FALTA O INICIO E FIM
         return self.dicVar, self.dicInstrucoes, self.ifsMerge, self.estruturasControlo
 
     def declaration(self,tree): #Define uma função, é preciso guardar a scope
@@ -136,15 +143,17 @@ class MyInterpreter(Interpreter):
             self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,False,False,True,True,False)
 
     def statement(self,tree):
-        self.visit_children(tree)
+        return self.visit_children(tree)
 
     def body(self,tree):
-        self.visit_children(tree)
+        return self.visit_children(tree)
 
     def statement(self,tree):
         self.visit_children(tree)
     
     def if_statement(self,tree): # exp body body?
+
+        stringElse = ""
         if self.estrutura:
             self.estruturasControlo += 1
 
@@ -152,18 +161,32 @@ class MyInterpreter(Interpreter):
 
         if(self.boolIF):
             self.ifsMerge += 1
-        self.visit(tree.children[0])
+        
+        n = self.visit(tree.children[0])
+
+
 
         self.estrutura.append(True)
         self.boolIF = True
-        self.visit(tree.children[1])
+        exp = self.visit(tree.children[1])
         self.boolIF = False
         self.estrutura.pop()
 
-        if len(tree.children) == 3:
-            self.visit(tree.children[2])
-        
+        numeroFilhos = len(tree.children)
 
+        if numeroFilhos == 3:
+            expElse = self.visit(tree.children[2])
+            stringElse = f"""
+            "if {n}" -> "{expElse}"
+            """
+
+        stringG = f"""
+        "if {n}" [shaped=diamond];
+        "if {n}" -> "{exp}"
+        """
+        stringG += stringElse
+        self.stringGrafo += stringG
+        return stringG
     def while_statement(self,tree):
         self.boolIF = False
 
@@ -173,9 +196,18 @@ class MyInterpreter(Interpreter):
         self.dicInstrucoes['ciclicas'] += 1
     
         self.estrutura.append(True)
-        self.visit_children(tree)
+        exp = self.visit(tree.children[0])
+        body = self.visit(tree.children[1])
         self.estrutura.pop()
-        
+
+        string = f"""
+        "while {exp}" [shape=diamond];
+        "while {exp}" -> "{body}"[label="true"];
+        "{body}" -> "while {exp}"
+        "while {exp}" -> ""[label="false"]; 
+        """
+        ##Fix, falta o fim do ciclo
+        return string
 
     def for_statement(self,tree):
         self.boolIF = False
@@ -188,37 +220,42 @@ class MyInterpreter(Interpreter):
         self.dicInstrucoes['leitura'] += 1
 
         self.estrutura.append(True)
-        self.visit_children(tree)
+        exp = self.visit_children(tree)
         self.estrutura.pop()
+        return exp
 
     def assign_statement(self,tree):
         self.boolIF = False
 
         self.dicInstrucoes['atribuicoes'] += 1
         self.declAuxValue = True
-        self.visit_children(tree)
+        exp = self.visit_children(tree)
         self.declAuxValue = False
+        return exp
 
     def print_statement(self,tree):
         self.boolIF = False
 
-        self.visit_children(tree)
+        exp = self.visit_children(tree)
+        return exp
 
     def declare_statement(self,tree):
         self.boolIF = False
 
-        self.visit_children(tree)
+        exp = self.visit_children(tree)
+        return exp
 
     def call_function(self,tree):
         self.boolIF = False
 
-        self.visit_children(tree)
-
+        exp = self.visit_children(tree)
+        return exp
 
     def return_statement(self,tree):
         self.boolIF = False
 
-        self.visit_children(tree)
+        exp = self.visit_children(tree)
+        return exp 
 
     def switch_case_statement(self,tree):
         self.boolIF = False
@@ -230,17 +267,19 @@ class MyInterpreter(Interpreter):
         self.visit_children(tree)
 
         self.estrutura.append(True)
-        self.visit(tree.children[1])  # Visita novamente o corpo do switch_case para verificar aninhamentos
+        exp = self.visit(tree.children[1])  # Visita novamente o corpo do switch_case para verificar aninhamentos
         self.estrutura.pop()
+        return exp
 
     def switch_case_branch(self,tree):
-        self.visit_children(tree)
+        return self.visit_children(tree)
 
     def args(self,tree):
-        self.visit_children(tree)
+        return self.visit_children(tree)
 
     def expr(self,tree): 
-        self.visit_children(tree)
+        return self.visit_children(tree)
+
 
     def value(self,tree):
 
@@ -254,8 +293,9 @@ class MyInterpreter(Interpreter):
                 self.dicVar[f"{value}-{self.scope}"] = v
             else:
                 self.dicVar[f"{value}-{self.scope}"] = (None,False,False,True,True,False) 
+            return value
         else:   
-            self.visit_children(tree)
+            return self.visit_children(tree)
 
     def array_access(self,tree):
         self.boolIF = False
@@ -284,19 +324,19 @@ class MyInterpreter(Interpreter):
         self.visit_children(tree)
 
     def binary_op(self,tree):
-        pass
+        return str(tree.children[0])
 
     def unary_op(self,tree):
-        pass
+        return str(tree.children[0])
 
     def binary_op_priority(self,tree): 
-        pass
+        return str(tree.children[0])
 
     def int(self,tree):
-        pass
+        return int(tree.children[0])
     
     def string(self,tree):
-        pass
+        return str(tree.children[0])
     
     def tuple(self,tree):
         for elemento in tree.children:
@@ -312,7 +352,7 @@ class MyInterpreter(Interpreter):
                     self.dicVar[f"{value}-{self.scope}"] = (None,False,False,True,True,False)
 
     def bool(self,tree):
-        pass
+        return str(tree.children[0])
     
     def array(self,tree):
         self.visit_children(tree)
@@ -330,7 +370,13 @@ class MyInterpreter(Interpreter):
         return str(tree.children[0])
     
     def INTEGER(self,tree):
-        pass
+        return int(tree.children[0])
+    
+    def BOOOL(self,tree):
+        return str(tree.children[0])
+    
+    def access(self,tree):
+        return self.visit_children(tree)
 
 grammar = '''
 start: (declaration | statement)*
