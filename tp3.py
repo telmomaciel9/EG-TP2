@@ -3,6 +3,14 @@ from lark.tree import pydot__tree_to_png
 from lark.visitors import Interpreter
 import html
 
+def extract_values_to_string(data):
+    if isinstance(data, list):
+        result = []
+        for item in data:
+            result.append(extract_values_to_string(item))
+        return ' '.join(result)
+    else:
+        return str(data)
 
 def comparatorIdentifier(dic):
     tipo = dic[0]
@@ -61,133 +69,137 @@ class MyInterpreter(Interpreter):
         self.declAuxValue = False #saber se vem do assign_statement
         self.boolIF = False
         self.ifsMerge = 0
-        self.dicInstrucoes = {'atribuicoes': 0, 
-                                'leitura': 0,
-                                'condicionais': 0,
-                                'ciclicas': 0}
+        self.dicInstrucoes = {
+            'atribuicoes': 0, 
+            'leitura': 0,
+            'condicionais': 0,
+            'ciclicas': 0
+        }
         self.scope = "Global"
-        self.stringGrafo = f"""
-        """
+        self.stringGrafo = ""
+        self.arrayString = []
 
-    
-    def start(self,tree):
+    def start(self, tree):
         print("Interpreter started")
         for elemento in tree.children:
-            string = self.visit(elemento)
+            string = self.visit(elemento) or ""
             self.stringGrafo += string
+        self.stringGrafo = f"digraph Programa{{\n{self.stringGrafo}\n}}" #FALTA O INICIO E FIM
+        arrayDasStrings = self.arrayString[::-1]
+        stringGrafoFinal = ""
+        if arrayDasStrings:
+            stringGrafoFinal = "\n".join(arrayDasStrings)
+        return self.dicVar, self.dicInstrucoes, self.ifsMerge, self.estruturasControlo, self.stringGrafo, stringGrafoFinal
 
-        self.stringGrafo += "digraph Programa{\n" + self.stringGrafografo + "\n}" #FALTA O INICIO E FIM
-        return self.dicVar, self.dicInstrucoes, self.ifsMerge, self.estruturasControlo
-
-    def declaration(self,tree): #Define uma função, é preciso guardar a scope
+    def declaration(self, tree): #Define uma função, é preciso guardar a scope
         for elemento in tree.children:
             if (isinstance(elemento, Token) and elemento.type == 'IDENTIFIER'):
                 self.scope = elemento
         self.visit_children(tree)
         self.scope = "Global"
 
-    def paramsfunc(self,tree):
+    def paramsfunc(self, tree):
         self.visit_children(tree)
 
-    def declfunc(self,tree):
-        tipo = self.visit(tree.children[0])
+    def declfunc(self, tree):
+        tipo = self.visit(tree.children[0]) or ""
         
         if len(tree.children) == 3:
             nomeVAR = str(tree.children[2])
-            compTIPO = self.visit(tree.children[1])
+            compTIPO = self.visit(tree.children[1]) or ""
             tipo = f"{tipo}-{compTIPO}"
         else:
             nomeVAR = str(tree.children[1])
         
-
-        if f"{nomeVAR}-{self.scope}" in self.dicVar:
-            keyObject = self.dicVar[f"{nomeVAR}-{self.scope}"]
-            v = comparator(keyObject,True,tipo)   
-            self.dicVar[f"{nomeVAR}-{self.scope}"] = v 
+        key = f"{nomeVAR}-{self.scope}"
+        if key in self.dicVar:
+            keyObject = self.dicVar[key]
+            v = comparator(keyObject, True, tipo)   
+            self.dicVar[key] = v 
         else:
-            self.dicVar[f"{nomeVAR}-{self.scope}"] = (tipo,True,False,False,False,False)
+            self.dicVar[key] = (tipo, True, False, False, False, False)
 
-    def decl(self,tree):
+    def decl(self, tree):
         nomeVAR = None
-        tipo = self.visit(tree.children[0])
+        tipo = self.visit(tree.children[0]) or ""
         
         if len(tree.children) == 3:
             nomeVAR = str(tree.children[2])
-            compTIPO = self.visit(tree.children[1])
+            compTIPO = self.visit(tree.children[1]) or ""
             tipo = f"{tipo}-{compTIPO}"
         else:
             nomeVAR = tree.children[1]
 
-        if f"{nomeVAR}-{self.scope}" in self.dicVar:
-            keyObject = self.dicVar[f"{nomeVAR}-{self.scope}"]
-            v = comparator(keyObject,True,tipo,self.declAuxValue)  
-            self.dicVar[f"{nomeVAR}-{self.scope}"] = v
-
+        key = f"{nomeVAR}-{self.scope}"
+        if key in self.dicVar:
+            keyObject = self.dicVar[key]
+            v = comparator(keyObject, True, tipo, self.declAuxValue)  
+            self.dicVar[key] = v
         else:
-            if(self.declAuxValue):
-                self.dicVar[f"{nomeVAR}-{self.scope}"] = (tipo,True,False,False,False,False)
+            if self.declAuxValue:
+                self.dicVar[key] = (tipo, True, False, False, False, False)
             else:
-                self.dicVar[f"{nomeVAR}-{self.scope}"] = (tipo,False,False,False,False,False)
+                self.dicVar[key] = (tipo, False, False, False, False, False)
 
-    def declsemtipo(self,tree):
+    def declsemtipo(self, tree):
         nomeVAR = str(tree.children[0])
+        key = f"{nomeVAR}-{self.scope}"
 
-        if f"{nomeVAR}-{self.scope}" in self.dicVar:
-            keyObject = self.dicVar[f"{nomeVAR}-{self.scope}"]
-            v = comparator(keyObject,False,None,self.declAuxValue)
-            self.dicVar[f"{nomeVAR}-{self.scope}"] = v
-        
-        elif(self.declAuxValue): # Veio do assign_statement, ou seja, tem valor mas nao tem tipo
-            self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,True,False,True,False,False)
+        if key in self.dicVar:
+            keyObject = self.dicVar[key]
+            v = comparator(keyObject, False, None, self.declAuxValue)
+            self.dicVar[key] = v
+        elif self.declAuxValue: # Veio do assign_statement, ou seja, tem valor mas nao tem tipo
+            self.dicVar[key] = (None, True, False, True, False, False)
         else:                           
-            self.dicVar[f"{nomeVAR}-{self.scope}"] = (None,False,False,True,True,False)
+            self.dicVar[key] = (None, False, False, True, True, False)
 
-    def statement(self,tree):
+    def statement(self, tree):
         return self.visit_children(tree)
 
-    def body(self,tree):
+    def body(self, tree):
         return self.visit_children(tree)
 
-    def statement(self,tree):
-        self.visit_children(tree)
-    
-    def if_statement(self,tree): # exp body body?
-
+    def if_statement(self, tree): # exp body body?
         stringElse = ""
         if self.estrutura:
             self.estruturasControlo += 1
 
         self.dicInstrucoes['condicionais'] += 1
 
-        if(self.boolIF):
+        if self.boolIF:
             self.ifsMerge += 1
-        
-        n = self.visit(tree.children[0])
 
-
+        n = self.visit(tree.children[0]) or ""
 
         self.estrutura.append(True)
         self.boolIF = True
-        exp = self.visit(tree.children[1])
+
+        exp = self.visit(tree.children[1]) or ""
+
         self.boolIF = False
         self.estrutura.pop()
 
-        numeroFilhos = len(tree.children)
+        
+        stringG = f"""
+        "if {extract_values_to_string(n)}" [shape=diamond];
+        "if {extract_values_to_string(n)}" -> "{exp}"
+        """
 
+
+        numeroFilhos = len(tree.children)
         if numeroFilhos == 3:
-            expElse = self.visit(tree.children[2])
+            expElse = self.visit(tree.children[2]) or ""
             stringElse = f"""
-            "if {n}" -> "{expElse}"
+            "if {n[0]}" -> "{expElse}"
             """
 
-        stringG = f"""
-        "if {n}" [shaped=diamond];
-        "if {n}" -> "{exp}"
-        """
         stringG += stringElse
         self.stringGrafo += stringG
+        self.arrayString.append(stringG)
         return stringG
-    def while_statement(self,tree):
+
+    def while_statement(self, tree):
         self.boolIF = False
 
         if self.estrutura:
@@ -196,8 +208,8 @@ class MyInterpreter(Interpreter):
         self.dicInstrucoes['ciclicas'] += 1
     
         self.estrutura.append(True)
-        exp = self.visit(tree.children[0])
-        body = self.visit(tree.children[1])
+        exp = self.visit(tree.children[0]) or ""
+        body = self.visit(tree.children[1]) or ""
         self.estrutura.pop()
 
         string = f"""
@@ -206,10 +218,10 @@ class MyInterpreter(Interpreter):
         "{body}" -> "while {exp}"
         "while {exp}" -> ""[label="false"]; 
         """
-        ##Fix, falta o fim do ciclo
+        self.stringGrafo += string
         return string
 
-    def for_statement(self,tree):
+    def for_statement(self, tree):
         self.boolIF = False
 
         if self.estrutura:
@@ -220,44 +232,61 @@ class MyInterpreter(Interpreter):
         self.dicInstrucoes['leitura'] += 1
 
         self.estrutura.append(True)
-        exp = self.visit_children(tree)
+        exp = self.visit_children(tree) or ""
         self.estrutura.pop()
         return exp
 
-    def assign_statement(self,tree):
+    def assign_statement(self, tree):
         self.boolIF = False
 
         self.dicInstrucoes['atribuicoes'] += 1
         self.declAuxValue = True
-        exp = self.visit_children(tree)
+        exp = self.visit_children(tree) or ""
         self.declAuxValue = False
-        return exp
+        string = f"""
+        "{tree.children[0]}" -> "{exp}"
+        """
+        self.stringGrafo += string
+        return string
 
-    def print_statement(self,tree):
+    def print_statement(self, tree):
         self.boolIF = False
 
-        exp = self.visit_children(tree)
-        return exp
+        exp = self.visit_children(tree) or ""
+        string = f"""
+        "print" -> "{exp}"
+        """
+        self.stringGrafo += string
+        return string
 
-    def declare_statement(self,tree):
+    def declare_statement(self, tree):
         self.boolIF = False
 
-        exp = self.visit_children(tree)
-        return exp
+        exp = self.visit_children(tree) or ""
 
-    def call_function(self,tree):
+        return exp
+    
+    def call_function(self, tree):
         self.boolIF = False
 
-        exp = self.visit_children(tree)
-        return exp
+        exp = self.visit_children(tree) or ""
+        string = f"""
+        "call" -> "{exp}"
+        """
+        self.stringGrafo += string
+        return string
 
-    def return_statement(self,tree):
+    def return_statement(self, tree):
         self.boolIF = False
 
-        exp = self.visit_children(tree)
-        return exp 
+        exp = self.visit_children(tree) or ""
+        string = f"""
+        "return" -> "{exp}"
+        """
+        self.stringGrafo += string
+        return string
 
-    def switch_case_statement(self,tree):
+    def switch_case_statement(self, tree):
         self.boolIF = False
 
         if self.estrutura:
@@ -267,116 +296,118 @@ class MyInterpreter(Interpreter):
         self.visit_children(tree)
 
         self.estrutura.append(True)
-        exp = self.visit(tree.children[1])  # Visita novamente o corpo do switch_case para verificar aninhamentos
+        exp = self.visit(tree.children[1]) or ""  # Visita novamente o corpo do switch_case para verificar aninhamentos
         self.estrutura.pop()
         return exp
 
-    def switch_case_branch(self,tree):
-        return self.visit_children(tree)
+    def switch_case_branch(self, tree):
+        return self.visit_children(tree) or ""
 
-    def args(self,tree):
-        return self.visit_children(tree)
+    def args(self, tree):
+        return self.visit_children(tree) or ""
 
-    def expr(self,tree): 
-        return self.visit_children(tree)
+    def expr(self, tree): 
+        return self.visit_children(tree) or ""
 
-
-    def value(self,tree):
-
-        if(isinstance(tree.children[0], Token)) and tree.children[0].type == 'IDENTIFIER':
-
+    def value(self, tree):
+        if isinstance(tree.children[0], Token) and tree.children[0].type == 'IDENTIFIER':
             self.dicInstrucoes['leitura'] += 1
             value = str(tree.children[0])
-            if f"{value}-{self.scope}" in self.dicVar:
-                dic = self.dicVar[f"{value}-{self.scope}"]
+            key = f"{value}-{self.scope}"
+            if key in self.dicVar:
+                dic = self.dicVar[key]
                 v = comparatorIdentifier(dic)
-                self.dicVar[f"{value}-{self.scope}"] = v
+                self.dicVar[key] = v
             else:
-                self.dicVar[f"{value}-{self.scope}"] = (None,False,False,True,True,False) 
+                self.dicVar[key] = (None, False, False, True, True, False) 
+            
             return value
         else:   
-            return self.visit_children(tree)
+            return self.visit_children(tree) or ""
 
-    def array_access(self,tree):
+    def array_access(self, tree):
         self.boolIF = False
 
         value = str(tree.children[0])
-        if f"{value}-{self.scope}" in self.dicVar:
-            dic = self.dicVar[f"{value}-{self.scope}"]
+        key = f"{value}-{self.scope}"
+        if key in self.dicVar:
+            dic = self.dicVar[key]
             v = comparatorIdentifier(dic)
-            self.dicVar[f"{value}-{self.scope}"] = v
+            self.dicVar[key] = v
         else:
-            self.dicVar[f"{value}-{self.scope}"] = (None,True,False,True,False,False)
+            self.dicVar[key] = (None, True, False, True, False, False)
         self.visit_children(tree)
 
-    def set_access(self,tree):
-
+    def set_access(self, tree):
         self.boolIF = False
 
-
         value = str(tree.children[0])
-        if f"{value}-{self.scope}" in self.dicVar:
-            dic = self.dicVar[f"{value}-{self.scope}"]
+        key = f"{value}-{self.scope}"
+        if key in self.dicVar:
+            dic = self.dicVar[key]
             v = comparatorIdentifier(dic)
-            self.dicVar[f"{value}-{self.scope}"] = v
+            self.dicVar[key] = v
         else:
-            self.dicVar[f"{value}-{self.scope}"] = (None,True,False,True,False,False)
+            self.dicVar[key] = (None, True, False, True, False, False)
         self.visit_children(tree)
 
-    def binary_op(self,tree):
-        return str(tree.children[0])
+    def binary_op(self, tree):
+        print("binary-op", tree)
+        arrayAux = []
 
-    def unary_op(self,tree):
-        return str(tree.children[0])
-
-    def binary_op_priority(self,tree): 
-        return str(tree.children[0])
-
-    def int(self,tree):
-        return int(tree.children[0])
-    
-    def string(self,tree):
-        return str(tree.children[0])
-    
-    def tuple(self,tree):
         for elemento in tree.children:
-            if (isinstance(elemento, Token) and elemento.type == 'IDENTIFIER'):
-                value = str(elemento)
+            if (isinstance(elemento, Tree) and elemento.data == 'binary_op_priority'):
+                arrayAux.append(self.visit(elemento))
+            else:
+                arrayAux.append((elemento))
+    
+        return ' '.join(arrayAux)
 
-                if f"{value}-{self.scope}" in self.dicVar:
-                    dic = self.dicVar[f"{value}-{self.scope}"]
-                    v = comparatorIdentifier(dic)
-                    self.dicVar[f"{value}-{self.scope}"] = v
 
-                else:
-                    self.dicVar[f"{value}-{self.scope}"] = (None,False,False,True,True,False)
+    def unary_op(self, tree):
+        return ' '.join([str(child) for child in tree.children])
 
-    def bool(self,tree):
+    def binary_op_priority(self, tree): 
+        return ' '.join([str(child) for child in tree.children])
+
+    def int(self, tree):
         return str(tree.children[0])
     
-    def array(self,tree):
-        self.visit_children(tree)
-    
-    def set(self,tree):
-        self.visit_children(tree)
-
-    def comp_type(self,tree):
-        return str(tree.children[0])
-
-    def IDENTIFIER(self,tree):
-        return tree.children[0]
-
-    def type(self,tree):
+    def string(self, tree):
         return str(tree.children[0])
     
-    def INTEGER(self,tree):
-        return int(tree.children[0])
-    
-    def BOOOL(self,tree):
+    def tuple(self, tree):
+        return ', '.join([str(child) for child in tree.children])
+
+    def bool(self, tree):
         return str(tree.children[0])
     
-    def access(self,tree):
-        return self.visit_children(tree)
+    def array(self, tree):
+        return ', '.join([self.visit(child) for child in tree.children])
+    
+    def set(self, tree):
+        return ', '.join([self.visit(child) for child in tree.children])
+
+    def comp_type(self, tree):
+        return str(tree.children[0])
+
+    def IDENTIFIER(self, tree):
+        return str(tree.children[0])
+
+    def type(self, tree):
+        return str(tree.children[0])
+    
+    def INTEGER(self, tree):
+        return str(tree.children[0])
+    
+    def BOOL(self, tree):
+        return str(tree.children[0])
+    
+    def access(self, tree):
+        return self.visit_children(tree) or ""
+
+
+
 
 grammar = '''
 start: (declaration | statement)*
@@ -429,9 +460,14 @@ expr: value
 
 value: BOOOL | IDENTIFIER | tuple | array | set | INTEGER | STRING 
 
-binary_op: "==" | "!=" | "<" | ">" | "<=" | ">=" | "+" | "-" | "or" | binary_op_priority
-binary_op_priority:"*" | "/" | "%" | "^" | "and"
-unary_op: "++" | "--"
+binary_op: BINARY_OP | binary_op_priority
+binary_op_priority: BINARY_OP_PRIORITY
+unary_op: UNARY_OP
+
+BINARY_OP: "==" | "!=" | "<=" | ">=" | "<" | ">" | "+" | "-" | "or"
+BINARY_OP_PRIORITY: "*" | "/" | "%" | "^" | "and"
+UNARY_OP: "++" | "--"
+
 
 array_access: IDENTIFIER "[" value "]"
 set_access: IDENTIFIER "{" value   "}"
@@ -475,8 +511,8 @@ INTEGER: /\d+/
 frase0 = '''
 
 if ( a * (a + b) ) {     
-int a; 
-        if (in) {
+    int a; 
+    if (in) {
         }
 }
 
@@ -655,8 +691,10 @@ pydot__tree_to_png(tree, 'lark.png')  # corrigido o nome da função
 
 
 print("interpreter")
-dic,dicCenas, ifs, estruturasControlo = MyInterpreter().visit(tree)
+dic,dicCenas, ifs, estruturasControlo, stringGrafo, array = MyInterpreter().visit(tree)
 
+
+ 
 print("Estruturas de controlo:", estruturasControlo)
 print(dicCenas)
 print("ifs",ifs)
@@ -758,3 +796,8 @@ with open('output.html', 'w') as f:
     f.write(f"<p>{section5}</p>")
 
     f.write("</body></html>")
+
+
+print(stringGrafo)
+
+print("Array->",array)
