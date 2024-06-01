@@ -17,6 +17,11 @@ import re
 
 import re
 
+def remove_whitespace(array):
+    for i in range(len(array)):
+        array[i] = array[i].strip()
+
+
 def inicio_fim(string):
     quote_indices = [i for i, char in enumerate(string) if char == '"']
     
@@ -179,7 +184,7 @@ class MyInterpreter(Interpreter):
 
 
         expressao = f"{tipo} {nomeVAR}" 
-        string = f"{expressao} -> "
+        
         return expressao
     
     def declsemtipo(self, tree):
@@ -229,19 +234,22 @@ class MyInterpreter(Interpreter):
         "if {extract_values_to_string(n)}" [shape=diamond];
         "if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"
         """
-        if len(exp) >1:
+
+        if len(exp) > 1:
             pattern = r'"([^"]*)"'
-            match = re.search(pattern, extract_values_to_string(exp[1]))
-            print("Match", match.group(1))
-            stringG += f"""
-        "{extract_values_to_string(exp[0])}" -> "{match.group(1)}"
-            """
+            for element in exp[1:]:
+                match = re.search(pattern, extract_values_to_string(element))
+                if match:
+                    print("Match", match.group(1))
+                    stringG += f"""
+                "{extract_values_to_string(exp[0])}" -> "{match.group(1)}"
+                    """
 
         numeroFilhos = len(tree.children)
         if numeroFilhos == 3:
             expElse = self.visit(tree.children[2]) or ""
             stringElse = f"""
-            "if {n[0]}" -> "{expElse}"
+            "if {extract_values_to_string(n)}" -> "{extract_values_to_string(expElse)}"
             """
 
         stringG += stringElse
@@ -561,9 +569,16 @@ frase0 = '''
 
 if ( a * (a + b) ) {     
     int a; 
+    int b;
     if (in) {
-
+        if(aboboras) {
+            int al;
         }
+    } else {
+        int ah;
+    }
+}else {
+int c;
 }
 
 '''
