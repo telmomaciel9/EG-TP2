@@ -2,6 +2,18 @@ from lark import Lark,Tree,Token
 from lark.tree import pydot__tree_to_png
 from lark.visitors import Interpreter
 import html
+import re
+
+def inicio_fim(string):
+    first_quote_index = string.find('"')
+    last_quote_index = string.rfind('"')
+    
+    if first_quote_index != -1 and last_quote_index != -1:
+        first_quote = string[first_quote_index + 1: string.find('"', first_quote_index + 1)]
+        last_quote = string[string.rfind('"', 0, last_quote_index) + 1: last_quote_index]
+        return first_quote.strip(), last_quote.strip()
+    else:
+        return None, None
 
 def extract_values_to_string(data):
     if isinstance(data, list):
@@ -76,20 +88,23 @@ class MyInterpreter(Interpreter):
             'ciclicas': 0
         }
         self.scope = "Global"
-        self.stringGrafo = ""
         self.arrayString = []
 
     def start(self, tree):
         print("Interpreter started")
-        for elemento in tree.children:
-            string = self.visit(elemento) or ""
-            self.stringGrafo += string
-        self.stringGrafo = f"digraph Programa{{\n{self.stringGrafo}\n}}" #FALTA O INICIO E FIM
+        self.visit_children(tree)
+        #self.stringGrafo = f"digraph Programa{{\n{self.stringGrafo}}}" #FALTA O INICIO E FIM
+        print("Start", self.arrayString)
         arrayDasStrings = self.arrayString[::-1]
         stringGrafoFinal = ""
         if arrayDasStrings:
             stringGrafoFinal = "\n".join(arrayDasStrings)
-        return self.dicVar, self.dicInstrucoes, self.ifsMerge, self.estruturasControlo, self.stringGrafo, stringGrafoFinal
+
+        primeiro, ultimo = inicio_fim(stringGrafoFinal)
+
+        stringGrafoFinal = f"""inicio -> "{primeiro}"{stringGrafoFinal}"{ultimo}" -> fim"""
+
+        return self.dicVar, self.dicInstrucoes, self.ifsMerge, self.estruturasControlo, stringGrafoFinal
 
     def declaration(self, tree): #Define uma função, é preciso guardar a scope
         for elemento in tree.children:
@@ -141,6 +156,11 @@ class MyInterpreter(Interpreter):
             else:
                 self.dicVar[key] = (tipo, False, False, False, False, False)
 
+
+        expressao = f"{tipo} {nomeVAR}" 
+        string = f"{expressao} -> "
+        return expressao
+    
     def declsemtipo(self, tree):
         nomeVAR = str(tree.children[0])
         key = f"{nomeVAR}-{self.scope}"
@@ -154,6 +174,8 @@ class MyInterpreter(Interpreter):
         else:                           
             self.dicVar[key] = (None, False, False, True, True, False)
 
+        return nomeVAR
+    
     def statement(self, tree):
         return self.visit_children(tree)
 
@@ -180,12 +202,18 @@ class MyInterpreter(Interpreter):
         self.boolIF = False
         self.estrutura.pop()
 
-        
+
         stringG = f"""
         "if {extract_values_to_string(n)}" [shape=diamond];
-        "if {extract_values_to_string(n)}" -> "{exp}"
+        "if {extract_values_to_string(n)}" -> "{extract_values_to_string(exp[0])}"
         """
-
+        if len(exp) >1:
+            pattern = r'"([^"]*)"'
+            match = re.search(pattern, extract_values_to_string(exp[1]))
+            print("Match", match.group(1))
+            stringG += f"""
+        "{extract_values_to_string(exp[0])}" -> "{match.group(1)}"
+            """
 
         numeroFilhos = len(tree.children)
         if numeroFilhos == 3:
@@ -195,7 +223,6 @@ class MyInterpreter(Interpreter):
             """
 
         stringG += stringElse
-        self.stringGrafo += stringG
         self.arrayString.append(stringG)
         return stringG
 
@@ -218,7 +245,7 @@ class MyInterpreter(Interpreter):
         "{body}" -> "while {exp}"
         "while {exp}" -> ""[label="false"]; 
         """
-        self.stringGrafo += string
+        self.arrayString.append(string)
         return string
 
     def for_statement(self, tree):
@@ -246,7 +273,7 @@ class MyInterpreter(Interpreter):
         string = f"""
         "{tree.children[0]}" -> "{exp}"
         """
-        self.stringGrafo += string
+        self.arrayString.append(string)
         return string
 
     def print_statement(self, tree):
@@ -256,15 +283,15 @@ class MyInterpreter(Interpreter):
         string = f"""
         "print" -> "{exp}"
         """
-        self.stringGrafo += string
+        self.arrayString.append(string)
         return string
 
     def declare_statement(self, tree):
         self.boolIF = False
-
         exp = self.visit_children(tree) or ""
+        
 
-        return exp
+        return extract_values_to_string(exp)
     
     def call_function(self, tree):
         self.boolIF = False
@@ -273,17 +300,18 @@ class MyInterpreter(Interpreter):
         string = f"""
         "call" -> "{exp}"
         """
-        self.stringGrafo += string
+        self.arrayString.append(string)
         return string
 
     def return_statement(self, tree):
+
         self.boolIF = False
 
         exp = self.visit_children(tree) or ""
         string = f"""
         "return" -> "{exp}"
         """
-        self.stringGrafo += string
+        self.arrayString.append(string)
         return string
 
     def switch_case_statement(self, tree):
@@ -352,7 +380,6 @@ class MyInterpreter(Interpreter):
         self.visit_children(tree)
 
     def binary_op(self, tree):
-        print("binary-op", tree)
         arrayAux = []
 
         for elemento in tree.children:
@@ -513,6 +540,7 @@ frase0 = '''
 if ( a * (a + b) ) {     
     int a; 
     if (in) {
+       int b;
         }
 }
 
@@ -691,7 +719,7 @@ pydot__tree_to_png(tree, 'lark.png')  # corrigido o nome da função
 
 
 print("interpreter")
-dic,dicCenas, ifs, estruturasControlo, stringGrafo, array = MyInterpreter().visit(tree)
+dic,dicCenas, ifs, estruturasControlo,  array = MyInterpreter().visit(tree)
 
 
  
@@ -797,7 +825,5 @@ with open('output.html', 'w') as f:
 
     f.write("</body></html>")
 
-
-print(stringGrafo)
 
 print("Array->",array)
