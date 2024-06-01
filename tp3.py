@@ -4,13 +4,29 @@ from lark.visitors import Interpreter
 import html
 import re
 
-def inicio_fim(string):
-    first_quote_index = string.find('"')
-    last_quote_index = string.rfind('"')
+# def inicio_fim(string):
+#     first_quote_index = string.find('"')
+#     last_quote_index = string.rfind('"')
     
-    if first_quote_index != -1 and last_quote_index != -1:
-        first_quote = string[first_quote_index + 1: string.find('"', first_quote_index + 1)]
-        last_quote = string[string.rfind('"', 0, last_quote_index) + 1: last_quote_index]
+#     if first_quote_index != -1 and last_quote_index != -1:
+#         first_quote = string[first_quote_index + 1: string.find('"', first_quote_index + 1)]
+#         last_quote = string[string.rfind('"', 0, last_quote_index) + 1: last_quote_index]
+#         return first_quote.strip(), last_quote.strip()
+#     else:
+#         return None, None
+
+import re
+
+def inicio_fim(string):
+    quote_indices = [i for i, char in enumerate(string) if char == '"']
+    
+    if len(quote_indices) >= 2:
+        first_quote = string[quote_indices[0] + 1: quote_indices[1]]
+        last_quote = string[quote_indices[-2] + 1: quote_indices[-1]]
+        
+        if last_quote.strip() == "" and len(quote_indices) >= 4:
+            last_quote = string[quote_indices[-4] + 1: quote_indices[-3]]
+            
         return first_quote.strip(), last_quote.strip()
     else:
         return None, None
@@ -98,6 +114,11 @@ class MyInterpreter(Interpreter):
         arrayDasStrings = self.arrayString[::-1]
         stringGrafoFinal = ""
         if arrayDasStrings:
+            print("Array das strings", arrayDasStrings)
+            if re.search(r'"if .*" -> ""', arrayDasStrings[-1]):
+                arrayDasStrings[-1] = re.sub(r'\n\s*"if .*" -> ""\n\s*', '\n', arrayDasStrings[-1])
+            print("Array das strings", arrayDasStrings)
+            
             stringGrafoFinal = "\n".join(arrayDasStrings)
 
         primeiro, ultimo = inicio_fim(stringGrafoFinal)
@@ -202,10 +223,11 @@ class MyInterpreter(Interpreter):
         self.boolIF = False
         self.estrutura.pop()
 
-
+        print("EXP", exp)   
+        conteudo =  exp[0] if exp else ""
         stringG = f"""
         "if {extract_values_to_string(n)}" [shape=diamond];
-        "if {extract_values_to_string(n)}" -> "{extract_values_to_string(exp[0])}"
+        "if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"
         """
         if len(exp) >1:
             pattern = r'"([^"]*)"'
@@ -540,7 +562,7 @@ frase0 = '''
 if ( a * (a + b) ) {     
     int a; 
     if (in) {
-       int b;
+
         }
 }
 
