@@ -17,11 +17,6 @@ import re
 
 import re
 
-def remove_whitespace(array):
-    for i in range(len(array)):
-        array[i] = array[i].strip()
-
-
 def inicio_fim(string):
     quote_indices = [i for i, char in enumerate(string) if char == '"']
     
@@ -120,9 +115,11 @@ class MyInterpreter(Interpreter):
         stringGrafoFinal = ""
         if arrayDasStrings:
             print("Array das strings", arrayDasStrings)
-            if re.search(r'"if .*" -> ""', arrayDasStrings[-1]):
-                arrayDasStrings[-1] = re.sub(r'\n\s*"if .*" -> ""\n\s*', '\n', arrayDasStrings[-1])
-            print("Array das strings", arrayDasStrings)
+            for i in range(len(arrayDasStrings)):
+                if re.search(r'"if .*" -> ""', arrayDasStrings[i]):
+                    arrayDasStrings[i] = re.sub(r'"if .*" -> ""', '\n', arrayDasStrings[i])
+            print("Array das stringsMOD", arrayDasStrings)
+
             
             stringGrafoFinal = "\n".join(arrayDasStrings)
 
@@ -209,6 +206,8 @@ class MyInterpreter(Interpreter):
         return self.visit_children(tree)
 
     def if_statement(self, tree): # exp body body?
+        numeroFilhos = len(tree.children)
+        
         stringElse = ""
         if self.estrutura:
             self.estruturasControlo += 1
@@ -229,28 +228,47 @@ class MyInterpreter(Interpreter):
         self.estrutura.pop()
 
         print("EXP", exp)   
-        conteudo =  exp[0] if exp else ""
-        stringG = f"""
-        "if {extract_values_to_string(n)}" [shape=diamond];
-        "if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"
-        """
+        conteudo = ""
+        if exp:
+            match = re.search(r'"([^"]*)"', exp[0][0])
+            if match:
+                conteudo = match.group(1)
+            else:
+                conteudo = exp[0][0]
+        print("CONTEUDO", conteudo)
+        stringG = f'"if {extract_values_to_string(n)}" [shape=diamond];\n"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"'
 
+
+
+         #INCOMPLETO
         if len(exp) > 1:
             pattern = r'"([^"]*)"'
             for element in exp[1:]:
                 match = re.search(pattern, extract_values_to_string(element))
                 if match:
                     print("Match", match.group(1))
-                    stringG += f"""
-                "{extract_values_to_string(exp[0])}" -> "{match.group(1)}"
-                    """
+                    stringG += f'"{extract_values_to_string(exp[0])}" -> "{match.group(1)}"\n'
 
-        numeroFilhos = len(tree.children)
+        
         if numeroFilhos == 3:
             expElse = self.visit(tree.children[2]) or ""
-            stringElse = f"""
-            "if {extract_values_to_string(n)}" -> "{extract_values_to_string(expElse)}"
-            """
+            conteudoElse = ""
+            if expElse:
+                match = re.search(r'"([^"]*)"', expElse[0][0])
+                if match:
+                    conteudoElse = match.group(1)
+                else:
+                    conteudoElse = expElse[0][0]
+            print("CONTEUDO-else", conteudoElse)
+            stringElse = f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudoElse)}"\n'
+
+            if len(exp) > 1:
+                pattern = r'"([^"]*)"'
+                for element in expElse[1:]:
+                    match = re.search(pattern, extract_values_to_string(element))
+                    if match:
+                        print("Match", match.group(1))
+                        stringElse += f'"{extract_values_to_string(expElse[0])}" -> "{match.group(1)}"\n'
 
         stringG += stringElse
         self.arrayString.append(stringG)
@@ -300,9 +318,9 @@ class MyInterpreter(Interpreter):
         self.declAuxValue = True
         exp = self.visit_children(tree) or ""
         self.declAuxValue = False
-        string = f"""
-        "{tree.children[0]}" -> "{exp}"
-        """
+
+        string = f'"{tree.children[0]}" -> "{exp}"'
+
         self.arrayString.append(string)
         return string
 
@@ -310,9 +328,7 @@ class MyInterpreter(Interpreter):
         self.boolIF = False
 
         exp = self.visit_children(tree) or ""
-        string = f"""
-        "print" -> "{exp}"
-        """
+        string = f'"print" -> "{exp}"'
         self.arrayString.append(string)
         return string
 
@@ -327,9 +343,7 @@ class MyInterpreter(Interpreter):
         self.boolIF = False
 
         exp = self.visit_children(tree) or ""
-        string = f"""
-        "call" -> "{exp}"
-        """
+        string = f'"call" -> "{exp}"'
         self.arrayString.append(string)
         return string
 
@@ -338,9 +352,7 @@ class MyInterpreter(Interpreter):
         self.boolIF = False
 
         exp = self.visit_children(tree) or ""
-        string = f"""
-        "return" -> "{exp}"
-        """
+        string = f'"return" -> "{exp}"'
         self.arrayString.append(string)
         return string
 
@@ -575,10 +587,13 @@ if ( a * (a + b) ) {
             int al;
         }
     } else {
-        int ah;
+        if(coae){
+        
+        }
+
     }
 }else {
-int c;
+
 }
 
 '''
