@@ -17,6 +17,14 @@ import re
 
 import re
 
+def add_shapes(string):
+    shapes = set()
+    pattern = r'"(if\s(?:[^"]|\\"|\\\\)*?)"'  # Expressão regular para encontrar "if" dentro de aspas
+    matches = re.findall(pattern, string)
+    for match in matches:
+        shapes.add(f'"{match}" [shape=diamond];')
+    return "\n".join(shapes)
+
 def inicio_fim(string):
     quote_indices = [i for i, char in enumerate(string) if char == '"']
     
@@ -127,6 +135,8 @@ class MyInterpreter(Interpreter):
 
         stringGrafoFinal = f"""inicio -> "{primeiro}"{stringGrafoFinal}"{ultimo}" -> fim"""
 
+        stringGrafoFinal += add_shapes(stringGrafoFinal)
+
         return self.dicVar, self.dicInstrucoes, self.ifsMerge, self.estruturasControlo, stringGrafoFinal
 
     def declaration(self, tree): #Define uma função, é preciso guardar a scope
@@ -227,20 +237,27 @@ class MyInterpreter(Interpreter):
         self.boolIF = False
         self.estrutura.pop()
 
-        print("EXP", exp)   
+        #print("EXP", exp)   
         conteudo = ""
+        stringG = ""
         if exp:
-            match = re.search(r'"([^"]*)"', exp[0][0])
-            if match:
-                conteudo = match.group(1)
+            if len(exp) > 1:
+                print("EXP3", extract_values_to_string(exp[2]))
+                for i in range(len(exp)-1):
+                    stringG += f'"{extract_values_to_string(exp[i])}" -> "{extract_values_to_string(exp[i+1])}"\n'
             else:
-                conteudo = exp[0][0]
-        print("CONTEUDO", conteudo)
-        stringG = f'"if {extract_values_to_string(n)}" [shape=diamond];\n"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"'
+                match = re.search(r'"([^"]*)"', exp[0][0])
+                if match:
+                    conteudo = match.group(1)
+                else:
+                    conteudo = exp[0][0]
+        #print("CONTEUDO", conteudo)
+        #print("N", n)
+        stringG += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"\n'
 
 
 
-         #INCOMPLETO
+        #INCOMPLETO
         if len(exp) > 1:
             pattern = r'"([^"]*)"'
             for element in exp[1:]:
@@ -288,7 +305,6 @@ class MyInterpreter(Interpreter):
         self.estrutura.pop()
 
         string = f"""
-        "while {exp}" [shape=diamond];
         "while {exp}" -> "{body}"[label="true"];
         "{body}" -> "while {exp}"
         "while {exp}" -> ""[label="false"]; 
@@ -596,7 +612,10 @@ if ( a * (a + b) ) {
 
 }
 
+
 '''
+
+
 
 frase = '''
 s;
