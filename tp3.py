@@ -17,6 +17,12 @@ import re
 
 import re
 
+def extract_first(expr):
+    match = re.search(r'"([^"]*)"', expr)
+    if match:
+        return match.group(1)
+    return None
+
 def add_shapes(string):
     shapes = set()
     pattern = r'"(if\s(?:[^"]|\\"|\\\\)*?)"'  # Expressão regular para encontrar "if" dentro de aspas
@@ -215,9 +221,9 @@ class MyInterpreter(Interpreter):
     def body(self, tree):
         return self.visit_children(tree)
 
-    def if_statement(self, tree): # exp body body?
+    def if_statement(self, tree):
         numeroFilhos = len(tree.children)
-        
+
         stringElse = ""
         if self.estrutura:
             self.estruturasControlo += 1
@@ -237,30 +243,37 @@ class MyInterpreter(Interpreter):
         self.boolIF = False
         self.estrutura.pop()
 
-        #print("EXP", exp)   
-        conteudo = ""
         stringG = ""
+        conteudo = ""
         if exp:
             if len(exp) > 1:
-                print("INDICE0:", extract_values_to_string(exp[0]),"\n")
-                print("INDICE1:", extract_values_to_string(exp[1]),"\n")
-                print("INDICE2:", extract_values_to_string(exp[2]),"\n")
-                for i in range(len(exp)-1):
-
-                    #print("1111111", f'"{extract_values_to_string(exp[i])}" -> "{extract_values_to_string(exp[i+1])}"\n')
+                stringG += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(exp[0])}"\n'
+                for i in range(len(exp)-2):
                     stringG += f'"{extract_values_to_string(exp[i])}" -> "{extract_values_to_string(exp[i+1])}"\n'
+                if extract_first(extract_values_to_string(exp[len(exp)-1])):
+                    stringG += f'"{extract_values_to_string(exp[len(exp)-2])}" -> "{extract_first(extract_values_to_string(exp[len(exp)-1]))}"\n'
+                else:
+                    stringG += f'"{extract_values_to_string(exp[len(exp)-2])}" -> "{extract_values_to_string(exp[len(exp)-1])}"\n'
             else:
+                print("Exp:", exp[0][0])
                 match = re.search(r'"([^"]*)"', exp[0][0])
                 if match:
                     conteudo = match.group(1)
                 else:
                     conteudo = exp[0][0]
-        #print("CONTEUDO", conteudo)
-        #print("N", n)
-        #print("2222222", f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"\n')
+
         stringG += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"\n'
 
-        
+
+        #INCOMPLETO
+        #if len(exp) > 1:
+        #    pattern = r'"([^"]*)"'
+        #    for element in exp[1:]:
+        #        match = re.search(pattern, extract_values_to_string(element))
+        #        if match:
+        #            print("Match", match.group(1))
+        #            stringG += f'"{extract_values_to_string(exp[0])}" -> "{match.group(1)}"\n'    
+
         if numeroFilhos == 3:
             expElse = self.visit(tree.children[2]) or ""
             conteudoElse = ""
@@ -270,22 +283,23 @@ class MyInterpreter(Interpreter):
                     conteudoElse = match.group(1)
                 else:
                     conteudoElse = expElse[0][0]
-            #print("CONTEUDO-else", conteudoElse)
-            #print("333333", f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudoElse)}"\n')
-            stringElse = f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudoElse)}"\n'
 
+            
+            stringElse = f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudoElse)}"\n'
+            
             if len(exp) > 1:
                 pattern = r'"([^"]*)"'
                 for element in expElse[1:]:
                     match = re.search(pattern, extract_values_to_string(element))
+                    print("MATCHHH", match)
                     if match:
-                        #print("Match", match.group(1))
-                        #print("444444", f'"{extract_values_to_string(expElse[0])}" -> "{match.group(1)}"\n')
                         stringElse += f'"{extract_values_to_string(expElse[0])}" -> "{match.group(1)}"\n'
+
 
         stringG += stringElse
         self.arrayString.append(stringG)
         return stringG
+
 
     def while_statement(self, tree):
         self.boolIF = False
@@ -597,15 +611,20 @@ if ( a * (a + b) ) {
     if (in) {
         if(aboboras) {
             int al;
+            int al2;
+            int al3;
         }
     } else {
         if(coae){
-        
+            int c;
+        }
+        else{
+            int e;
         }
 
     }
 }else {
-
+    int d;
 }
 
 
