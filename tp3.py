@@ -255,7 +255,7 @@ class MyInterpreter(Interpreter):
                 else:
                     stringG += f'"{extract_values_to_string(exp[len(exp)-2])}" -> "{extract_values_to_string(exp[len(exp)-1])}"\n'
             else:
-                print("Exp:", exp[0][0])
+                #print("Exp:", exp[0][0])
                 match = re.search(r'"([^"]*)"', exp[0][0])
                 if match:
                     conteudo = match.group(1)
@@ -276,6 +276,7 @@ class MyInterpreter(Interpreter):
 
         if numeroFilhos == 3:
             expElse = self.visit(tree.children[2]) or ""
+
             conteudoElse = ""
             if expElse:
                 match = re.search(r'"([^"]*)"', expElse[0][0])
@@ -287,13 +288,16 @@ class MyInterpreter(Interpreter):
             
             stringElse = f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudoElse)}"\n'
             
-            if len(exp) > 1:
-                pattern = r'"([^"]*)"'
-                for element in expElse[1:]:
-                    match = re.search(pattern, extract_values_to_string(element))
-                    print("MATCHHH", match)
-                    if match:
-                        stringElse += f'"{extract_values_to_string(expElse[0])}" -> "{match.group(1)}"\n'
+            if len(expElse) > 1:
+                for i in range(len(expElse)-1):
+                    stringElse += f'"{extract_values_to_string(expElse[i])}" -> "{extract_values_to_string(expElse[i+1])}"\n'
+                #print("ExpElse", expElse)
+                #pattern = r'"([^"]*)"'
+                #for element in expElse[1:]:
+                #    print("Element", element)
+                #    match = re.search(pattern, extract_values_to_string(element))
+                #    if match:
+                #        stringElse += f'"{extract_values_to_string(expElse[0])}" -> "{match.group(1)}"\n'
 
 
         stringG += stringElse
@@ -620,11 +624,13 @@ if ( a * (a + b) ) {
         }
         else{
             int e;
+            int h;
         }
 
     }
 }else {
     int d;
+    int f;
 }
 
 
