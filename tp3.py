@@ -133,7 +133,7 @@ class MyInterpreter(Interpreter):
 
         primeiro, ultimo = inicio_fim(stringGrafoFinal)
 
-        stringGrafoFinal = f"""inicio -> "{primeiro}"{stringGrafoFinal}"{ultimo}" -> fim"""
+        stringGrafoFinal = f"""inicio -> "{primeiro}"{stringGrafoFinal}"{ultimo}" -> fim\n"""
 
         stringGrafoFinal += add_shapes(stringGrafoFinal)
 
@@ -242,8 +242,12 @@ class MyInterpreter(Interpreter):
         stringG = ""
         if exp:
             if len(exp) > 1:
-                print("EXP3", extract_values_to_string(exp[2]))
+                print("INDICE0:", extract_values_to_string(exp[0]),"\n")
+                print("INDICE1:", extract_values_to_string(exp[1]),"\n")
+                print("INDICE2:", extract_values_to_string(exp[2]),"\n")
                 for i in range(len(exp)-1):
+
+                    #print("1111111", f'"{extract_values_to_string(exp[i])}" -> "{extract_values_to_string(exp[i+1])}"\n')
                     stringG += f'"{extract_values_to_string(exp[i])}" -> "{extract_values_to_string(exp[i+1])}"\n'
             else:
                 match = re.search(r'"([^"]*)"', exp[0][0])
@@ -253,18 +257,8 @@ class MyInterpreter(Interpreter):
                     conteudo = exp[0][0]
         #print("CONTEUDO", conteudo)
         #print("N", n)
+        #print("2222222", f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"\n')
         stringG += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"\n'
-
-
-
-        #INCOMPLETO
-        if len(exp) > 1:
-            pattern = r'"([^"]*)"'
-            for element in exp[1:]:
-                match = re.search(pattern, extract_values_to_string(element))
-                if match:
-                    print("Match", match.group(1))
-                    stringG += f'"{extract_values_to_string(exp[0])}" -> "{match.group(1)}"\n'
 
         
         if numeroFilhos == 3:
@@ -276,7 +270,8 @@ class MyInterpreter(Interpreter):
                     conteudoElse = match.group(1)
                 else:
                     conteudoElse = expElse[0][0]
-            print("CONTEUDO-else", conteudoElse)
+            #print("CONTEUDO-else", conteudoElse)
+            #print("333333", f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudoElse)}"\n')
             stringElse = f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudoElse)}"\n'
 
             if len(exp) > 1:
@@ -284,7 +279,8 @@ class MyInterpreter(Interpreter):
                 for element in expElse[1:]:
                     match = re.search(pattern, extract_values_to_string(element))
                     if match:
-                        print("Match", match.group(1))
+                        #print("Match", match.group(1))
+                        #print("444444", f'"{extract_values_to_string(expElse[0])}" -> "{match.group(1)}"\n')
                         stringElse += f'"{extract_values_to_string(expElse[0])}" -> "{match.group(1)}"\n'
 
         stringG += stringElse
