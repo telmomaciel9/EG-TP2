@@ -15,7 +15,32 @@ import re
 #     else:
 #         return None, None
 
-import re
+def add_end_to_unlinked_nodes(graph_str):
+    lines = graph_str.strip().split('\n')
+    nodes = set()
+    linked_nodes = set()
+
+    # Primeiro, coletar todos os nós e os nós que estão apontados
+    for line in lines:
+        match = re.match(r'"([^"]*)"\s*->\s*"([^"]*)"', line)
+        if match:
+            source, target = match.groups()
+            nodes.add(source)
+            nodes.add(target)
+            linked_nodes.add(source)
+        elif re.match(r'"([^"]*)"\s*\[shape=diamond\];', line):
+            node = re.match(r'"([^"]*)"', line).group(1)
+            nodes.add(node)
+
+    # Encontrar nós não ligados
+    unlinked_nodes = nodes - linked_nodes
+
+    # Adicionar links para "fim" para nós não ligados
+    result_lines = lines[:]
+    for node in unlinked_nodes:
+        result_lines.append(f'"{node}" -> fim')
+
+    return '\n'.join(result_lines)
 
 def extract_first(expr):
     match = re.search(r'"([^"]*)"', expr)
@@ -139,7 +164,9 @@ class MyInterpreter(Interpreter):
 
         primeiro, ultimo = inicio_fim(stringGrafoFinal)
 
-        stringGrafoFinal = f"""inicio -> "{primeiro}"{stringGrafoFinal}"{ultimo}" -> fim\n"""
+        stringGrafoFinal = f"""inicio -> "{primeiro}"{stringGrafoFinal}\n"""
+
+        stringGrafoFinal= add_end_to_unlinked_nodes(stringGrafoFinal)
 
         stringGrafoFinal += add_shapes(stringGrafoFinal)
 
