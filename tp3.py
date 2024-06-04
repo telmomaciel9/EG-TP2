@@ -151,6 +151,7 @@ class MyInterpreter(Interpreter):
         #self.stringGrafo = f"digraph Programa{{\n{self.stringGrafo}}}" #FALTA O INICIO E FIM
         print("Start", self.arrayString)
         arrayDasStrings = self.arrayString[::-1]
+        print("Array das strings-REVERSSSSS", arrayDasStrings)
         stringGrafoFinal = ""
         if arrayDasStrings:
             print("Array das strings", arrayDasStrings)
@@ -239,6 +240,8 @@ class MyInterpreter(Interpreter):
             self.dicVar[key] = (None, True, False, True, False, False)
         else:                           
             self.dicVar[key] = (None, False, False, True, True, False)
+
+
 
         return nomeVAR
     
@@ -345,15 +348,34 @@ class MyInterpreter(Interpreter):
         self.dicInstrucoes['ciclicas'] += 1
     
         self.estrutura.append(True)
-        exp = self.visit(tree.children[0]) or ""
-        body = self.visit(tree.children[1]) or ""
+        n = self.visit(tree.children[0]) or ""
+        exp = self.visit(tree.children[1]) or ""
         self.estrutura.pop()
+        string = ""
 
-        string = f"""
-        "while {exp}" -> "{body}"[label="true"];
-        "{body}" -> "while {exp}"
-        "while {exp}" -> ""[label="false"]; 
-        """
+        if exp:
+            if len(exp) > 1:
+                string += f'"while {extract_values_to_string(n)}" -> "{extract_values_to_string(exp[0])}"\n'
+                for i in range(len(exp)-2):
+                    string += f'"{extract_values_to_string(exp[i])}" -> "{extract_values_to_string(exp[i+1])}"\n'
+                if extract_first(extract_values_to_string(exp[len(exp)-1])):
+                    string += f'"{extract_values_to_string(exp[len(exp)-2])}" -> "{extract_first(extract_values_to_string(exp[len(exp)-1]))}"\n'
+                else:
+                    string += f'"{extract_values_to_string(exp[len(exp)-2])}" -> "{extract_values_to_string(exp[len(exp)-1])}"\n'
+            else:
+                #print("Exp:", exp[0][0])
+                match = re.search(r'"([^"]*)"', exp[0][0])
+                if match:
+                    conteudo = match.group(1)
+                else:
+                    conteudo = exp[0][0]
+        string += f'"while {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"\n'
+
+        # string = f"""
+        # "while {exp}" -> "{body}";
+        # "{body}" -> "while {exp}"
+        # "while {exp}" -> ""; 
+        # """
         self.arrayString.append(string)
         return string
 
@@ -380,9 +402,10 @@ class MyInterpreter(Interpreter):
         exp = self.visit_children(tree) or ""
         self.declAuxValue = False
 
-        string = f'"{tree.children[0]}" -> "{exp}"'
+        string = f'"{self.visit(tree.children[0])}" -> "{extract_values_to_string(exp)}"'
 
         self.arrayString.append(string)
+
         return string
 
     def print_statement(self, tree):
@@ -451,10 +474,10 @@ class MyInterpreter(Interpreter):
                 self.dicVar[key] = v
             else:
                 self.dicVar[key] = (None, False, False, True, True, False) 
-            
+
             return value
-        else:   
-            return self.visit_children(tree) or ""
+        else:
+            return str(tree.children[0]) or ""
 
     def array_access(self, tree):
         self.boolIF = False
@@ -528,6 +551,7 @@ class MyInterpreter(Interpreter):
         return str(tree.children[0])
     
     def INTEGER(self, tree):
+
         return str(tree.children[0])
     
     def BOOL(self, tree):
@@ -568,7 +592,7 @@ statement: if_statement
 if_statement: "if" "(" expr ")" "{" body "}" ("else" "{" body "}")?
 while_statement: "while" "(" expr ")" "{" body "}"
 for_statement: "for" "(" assign_statement ";" expr ";" decl unary_op ")" "{" body "}"
-assign_statement: decl "=" (expr | call_function)
+assign_statement: decl IGUAL (expr | call_function)
 print_statement: "print" "(" expr ")"
 declare_statement: decl
 call_function: IDENTIFIER "(" args ")"
@@ -610,6 +634,8 @@ type: INT
     | VOID
     | FLOAT
 
+    
+IGUAL: "="  
 INT: "int"
 STRINGG: "string"
 BOOL: "bool"
@@ -678,16 +704,11 @@ if ( a * (a + b) ) {
 
 
 frase = '''
-s;
+while (limao < 10) {
+        nutricao = nutricao + 1;
+        nutricao = nutricao + 1;
+    }
 
-int s = a + b;
-
-int s;
-
-int sum(int a, int b) {
-    int s = a + b;
-    return s;
-}
 
 '''
 
@@ -836,7 +857,7 @@ void teste_adicionar_elemento() {
 print("INICIO")
 p = Lark(grammar)  # cria um objeto parser
 print("Passou")
-tree = p.parse(frase0)  # retorna uma tree
+tree = p.parse(frase)  # retorna uma tree
 print(tree)
 print(tree.pretty())
 pydot__tree_to_png(tree, 'lark.png')  # corrigido o nome da função
