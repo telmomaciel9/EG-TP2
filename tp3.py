@@ -15,6 +15,21 @@ import re
 #     else:
 #         return None, None
 
+def remove_duplicate_lines(string):
+    lines = string.strip().split('\n')
+    seen = set()
+    unique_lines = []
+
+    # Itera sobre as linhas de trás para frente
+    for line in reversed(lines):
+        if line not in seen:
+            seen.add(line)
+            unique_lines.append(line)
+
+    # Reverte as linhas para manter a ordem original
+    unique_lines.reverse()
+    return '\n'.join(unique_lines)
+
 def add_end_to_unlinked_nodes(graph_str):
     lines = graph_str.strip().split('\n')
     nodes = set()
@@ -46,6 +61,12 @@ def extract_first(expr):
     match = re.search(r'"([^"]*)"', expr)
     if match:
         return match.group(1)
+    return None
+
+def extract_last(expr):
+    matches = re.findall(r'"([^"]*)"', expr)
+    if matches:
+        return matches[-1]
     return None
 
 def add_shapes(string):
@@ -144,14 +165,17 @@ class MyInterpreter(Interpreter):
         }
         self.scope = "Global"
         self.arrayString = []
+        self.ativoIF = []
+        self.ifAuxArray = []
 
     def start(self, tree):
         print("Interpreter started")
         self.visit_children(tree)
         #self.stringGrafo = f"digraph Programa{{\n{self.stringGrafo}}}" #FALTA O INICIO E FIM
         print("Start", self.arrayString)
-        arrayDasStrings = self.arrayString[::-1]
-        print("Array das strings-REVERSSSSS", arrayDasStrings)
+        #arrayDasStrings = self.arrayString[::-1]
+        #print("Array das strings-REVERSSSSS", arrayDasStrings)
+        arrayDasStrings=self.arrayString
         stringGrafoFinal = ""
         if arrayDasStrings:
             print("Array das strings", arrayDasStrings)
@@ -160,16 +184,18 @@ class MyInterpreter(Interpreter):
                     arrayDasStrings[i] = re.sub(r'"if .*" -> ""', '\n', arrayDasStrings[i])
             print("Array das stringsMOD", arrayDasStrings)
 
-            
+
             stringGrafoFinal = "\n".join(arrayDasStrings)
 
-        primeiro, ultimo = inicio_fim(stringGrafoFinal)
+        #primeiro, ultimo = inicio_fim(stringGrafoFinal)
 
-        stringGrafoFinal = f"""inicio -> "{primeiro}"{stringGrafoFinal}\n"""
+        #stringGrafoFinal = f"""inicio -> "{primeiro}"{stringGrafoFinal}\n"""
 
-        stringGrafoFinal= add_end_to_unlinked_nodes(stringGrafoFinal)
+        #stringGrafoFinal= add_end_to_unlinked_nodes(stringGrafoFinal)
 
-        stringGrafoFinal += add_shapes(stringGrafoFinal)
+        #stringGrafoFinal += add_shapes(stringGrafoFinal)
+
+        stringGrafoFinal = remove_duplicate_lines(stringGrafoFinal)
 
         return self.dicVar, self.dicInstrucoes, self.ifsMerge, self.estruturasControlo, stringGrafoFinal
 
@@ -223,8 +249,10 @@ class MyInterpreter(Interpreter):
             else:
                 self.dicVar[key] = (tipo, False, False, False, False, False)
 
-
         expressao = f"{tipo} {nomeVAR}" 
+        if not self.ativoIF: ##ISSO
+            self.arrayString.append(expressao)
+        
         
         return expressao
     
@@ -241,7 +269,10 @@ class MyInterpreter(Interpreter):
         else:                           
             self.dicVar[key] = (None, False, False, True, True, False)
 
+        #print("OKZIDKSA", self.ativoIF, "VARRRR", nomeVAR)
 
+        if not self.ativoIF: ##ISSO
+            self.arrayString.append(f'"{nomeVAR}"')
 
         return nomeVAR
     
@@ -252,6 +283,10 @@ class MyInterpreter(Interpreter):
         return self.visit_children(tree)
 
     def if_statement(self, tree):
+
+        self.ativoIF.append( True)
+
+
         numeroFilhos = len(tree.children)
 
         stringElse = ""
@@ -275,24 +310,62 @@ class MyInterpreter(Interpreter):
 
         stringG = ""
         conteudo = ""
+        #print("EXP-fififif", exp)
         if exp:
+            print("EXPPP", exp) #
+            #if len(exp) > 1:
+            #    stringG += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(exp[0])}"\n'
+            #    for i in range(len(exp)-2):
+            #        stringG += f'"{extract_values_to_string(exp[i])}" -> "{extract_values_to_string(exp[i+1])}"\n'
+            #    if extract_first(extract_values_to_string(exp[len(exp)-1])):
+            #        stringG += f'"{extract_values_to_string(exp[len(exp)-2])}" -> "{extract_first(extract_values_to_string(exp[len(exp)-1]))}"\n'
+            #    else:
+            #        stringG += f'"{extract_values_to_string(exp[len(exp)-2])}" -> "{extract_values_to_string(exp[len(exp)-1])}"\n'
             if len(exp) > 1:
+            #print("EXPPPSKJDAJKDHKJASKDH", exp) #
                 stringG += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(exp[0])}"\n'
-                for i in range(len(exp)-2):
-                    stringG += f'"{extract_values_to_string(exp[i])}" -> "{extract_values_to_string(exp[i+1])}"\n'
-                if extract_first(extract_values_to_string(exp[len(exp)-1])):
-                    stringG += f'"{extract_values_to_string(exp[len(exp)-2])}" -> "{extract_first(extract_values_to_string(exp[len(exp)-1]))}"\n'
-                else:
-                    stringG += f'"{extract_values_to_string(exp[len(exp)-2])}" -> "{extract_values_to_string(exp[len(exp)-1])}"\n'
+            
+                for i in range(0, len(exp) - 1):
+                    # [['al'], ['al2'], ['"if eu" -> "al3"'], ['poa']]
+
+                    
+                    current_value = extract_values_to_string(exp[i])
+                    #print("CURRENT VALUE", current_value)
+                    next_value = extract_values_to_string(exp[i + 1])
+                    #print("NEXT VALUE", next_value)
+                    
+                    if extract_first(current_value): #['"if eu" -> "al3"']
+                        #print("STRING", f'{current_value}\n')
+                        stringG += f'{current_value}\n'
+                        if extract_first(next_value):
+                            #print("STRING", f'"{extract_last(current_value)}" -> "{extract_first(next_value)}"\n')
+                            stringG += f'"{extract_last(current_value)}" -> "{extract_first(next_value)}"\n'
+                        else:
+                            #print("STRING", f'"{extract_last(current_value)}" -> "{next_value}"\n')
+                            stringG += f'"{extract_last(current_value)}" -> "{next_value}"\n'
+
+                    else: #['al']
+                        if extract_first(next_value):
+                            #print("STRING", f'"{current_value}" -> "{extract_first(next_value)}"\n')
+                            stringG += f'"{current_value}" -> "{extract_first(next_value)}"\n'
+                        else:
+                            #print("STRING", f'"{current_value}" -> "{next_value}"\n')
+                            stringG += f'"{current_value}" -> "{next_value}"\n'
+                        
             else:
+                print("OLAAAAAAAA")
                 #print("Exp:", exp[0][0])
                 match = re.search(r'"([^"]*)"', exp[0][0])
                 if match:
                     conteudo = match.group(1)
                 else:
                     conteudo = exp[0][0]
-
-        stringG += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"\n'
+                #stringG += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(exp)}"'
+        #print("CONTEUDOOOO", conteudo)
+        #print("JKHSHKJSKHJSSJKJHSAKHJS", f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"')
+        #print("HHHHHHHHH", {extract_values_to_string(conteudo)})
+        if extract_values_to_string(conteudo) != '':
+            stringG += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"\n'
 
 
         #INCOMPLETO
@@ -306,7 +379,6 @@ class MyInterpreter(Interpreter):
 
         if numeroFilhos == 3:
             expElse = self.visit(tree.children[2]) or ""
-
             conteudoElse = ""
             if expElse:
                 match = re.search(r'"([^"]*)"', expElse[0][0])
@@ -335,7 +407,15 @@ class MyInterpreter(Interpreter):
 
 
         stringG += stringElse
-        self.arrayString.append(stringG)
+        #print("STRINGGGGG!!!!", stringG)
+        self.ifAuxArray.append(stringG)
+        # self.arrayString.append(stringG)
+        self.ativoIF.pop()
+        if not self.ativoIF:
+            print("IFARRAY", self.ifAuxArray)
+            self.arrayString += self.ifAuxArray[::-1]
+        
+        #print("STRINGGGGG", stringG)
         return stringG
 
 
@@ -354,7 +434,7 @@ class MyInterpreter(Interpreter):
         string = ""
 
         if exp:
-            if len(exp) > 1:
+            if len(exp) > 1: #Dividir por "" e apagar as strings vazias do array. 
                 string += f'"while {extract_values_to_string(n)}" -> "{extract_values_to_string(exp[0])}"\n'
                 for i in range(len(exp)-2):
                     string += f'"{extract_values_to_string(exp[i])}" -> "{extract_values_to_string(exp[i+1])}"\n'
@@ -402,9 +482,10 @@ class MyInterpreter(Interpreter):
         exp = self.visit_children(tree) or ""
         self.declAuxValue = False
 
-        string = f'"{self.visit(tree.children[0])}" -> "{extract_values_to_string(exp)}"'
-
-        self.arrayString.append(string)
+        string = f'"{extract_values_to_string(exp)}"'
+        
+        if not self.ativoIF:
+            self.arrayString.append(string)
 
         return string
 
@@ -669,15 +750,17 @@ frase0 = '''
 if ( a * (a + b) ) {     
     int a; 
     int b;
+    int c;
     if (in) {
         if(aboboras) {
             int al;
             int al2;
             int al3;
         }
+        int teste;
     } else {
         if(coae){
-            int c;
+            c = 2;
         }
         else{
             int e;
@@ -701,14 +784,41 @@ if ( a * (a + b) ) {
 
 '''
 
-
+frase11= '''
+a;
+b;
+if(aboboras) {
+    al;
+    al2;
+    if(eu){
+        al3;
+        if(eu2){
+            al4;
+        }
+        else{
+            al5;
+        }
+        boneco;
+    }
+    alssss;
+}
+else{
+    eueueue;
+}
+'''
 
 frase = '''
-while (limao < 10) {
-        nutricao = nutricao + 1;
-        nutricao = nutricao + 1;
-    }
-
+if(aboboras){
+int a;
+int b;
+int c;
+if(in){
+    int dasd;
+}
+}
+if(incz){
+incz = incz + 1;
+}
 
 '''
 
@@ -857,7 +967,7 @@ void teste_adicionar_elemento() {
 print("INICIO")
 p = Lark(grammar)  # cria um objeto parser
 print("Passou")
-tree = p.parse(frase)  # retorna uma tree
+tree = p.parse(frase11)  # retorna uma tree
 print(tree)
 print(tree.pretty())
 pydot__tree_to_png(tree, 'lark.png')  # corrigido o nome da função
@@ -870,14 +980,14 @@ pydot__tree_to_png(tree, 'lark.png')  # corrigido o nome da função
 
 
 
-print("interpreter")
+#print("interpreter")
 dic,dicCenas, ifs, estruturasControlo,  array = MyInterpreter().visit(tree)
 
 
  
-print("Estruturas de controlo:", estruturasControlo)
-print(dicCenas)
-print("ifs",ifs)
+#print("Estruturas de controlo:", estruturasControlo)
+#print(dicCenas)
+#print("ifs",ifs)
 #exercicio 1
 listaRedeclaracoes = []
 listaNaoRedeclaracoes = []
@@ -899,22 +1009,22 @@ for key, value in dic.items():
     if tipo != None and not (bool4):
         listaNaoMencionadas.append(key)
 
-print("Variaveis redeclaradas: ", listaRedeclaracoes)
-print("Variaveis não declaradas: ", listaNaoRedeclaracoes)
-print("Variaveis usadas mas não inicializadas(sem valor): ", listaNaoInicializadas)
-print("Variaveis nao mencionadas mas declaradas: ", listaNaoMencionadas)
+#print("Variaveis redeclaradas: ", listaRedeclaracoes)
+#print("Variaveis não declaradas: ", listaNaoRedeclaracoes)
+#print("Variaveis usadas mas não inicializadas(sem valor): ", listaNaoInicializadas)
+#print("Variaveis nao mencionadas mas declaradas: ", listaNaoMencionadas)
 
 #exericio 2
 dicTipos = {}
 for key, value in dic.items():
-    print(f"{key} : {value}")
+    #print(f"{key} : {value}")
     tipo = value[0]
     if tipo not in dicTipos:
         dicTipos[tipo] = [key]
     else:
         dicTipos[tipo].append(key)
 
-print(f"Dicionario de tipos: {dicTipos}")
+#print(f"Dicionario de tipos: {dicTipos}")
 
 
 #exercicio 3
@@ -978,4 +1088,4 @@ with open('output.html', 'w') as f:
     f.write("</body></html>")
 
 
-print("Array->",array)
+print("\n\nSTRING FINAL\n\n",array)
