@@ -63,6 +63,21 @@ def extract_first(expr):
         return match.group(1)
     return None
 
+def extract_before_second_if(expr):
+    matches = re.findall(r'"if[^"]*"', expr)
+    if len(matches) >= 2:
+
+        target = matches[1]  # The string with "if" that appears second
+
+        parts = expr.split(target)
+        # print("PARTS", parts)
+        if len(parts) >= 2:
+            prev_matches = re.findall(r'"([^"]*)"', parts[1])
+            # print("PREV", prev_matches)
+            if prev_matches:
+                return prev_matches[-1]
+    return None
+
 def extract_last(expr):
     matches = re.findall(r'"([^"]*)"', expr)
     if matches:
@@ -167,6 +182,7 @@ class MyInterpreter(Interpreter):
         self.arrayString = []
         self.ativoIF = []
         self.ifAuxArray = []
+        self.elseBool = False
 
     def start(self, tree):
         print("Interpreter started")
@@ -310,6 +326,7 @@ class MyInterpreter(Interpreter):
 
         stringG = ""
         conteudo = ""
+
         #print("EXP-fififif", exp)
         if exp:
             print("EXPPP", exp) #
@@ -322,7 +339,7 @@ class MyInterpreter(Interpreter):
             #    else:
             #        stringG += f'"{extract_values_to_string(exp[len(exp)-2])}" -> "{extract_values_to_string(exp[len(exp)-1])}"\n'
             if len(exp) > 1:
-            #print("EXPPPSKJDAJKDHKJASKDH", exp) #
+            
                 stringG += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(exp[0])}"\n'
             
                 for i in range(0, len(exp) - 1):
@@ -330,18 +347,18 @@ class MyInterpreter(Interpreter):
 
                     
                     current_value = extract_values_to_string(exp[i])
-                    #print("CURRENT VALUE", current_value)
+                    print("CURRENT VALUE", current_value)
                     next_value = extract_values_to_string(exp[i + 1])
-                    #print("NEXT VALUE", next_value)
+                    print("NEXT VALUE", next_value)
                     
                     if extract_first(current_value): #['"if eu" -> "al3"']
-                        #print("STRING", f'{current_value}\n')
+                        print("STRING-", extract_first(current_value),"\n")
                         stringG += f'{current_value}\n'
                         if extract_first(next_value):
-                            #print("STRING", f'"{extract_last(current_value)}" -> "{extract_first(next_value)}"\n')
+                            print("STRING-2", f'"{extract_last(current_value)}" -> "{extract_first(next_value)}"\n')
                             stringG += f'"{extract_last(current_value)}" -> "{extract_first(next_value)}"\n'
                         else:
-                            #print("STRING", f'"{extract_last(current_value)}" -> "{next_value}"\n')
+                            print("STRING-3", f'"{extract_last(current_value)}" -> "{next_value}"\n')
                             stringG += f'"{extract_last(current_value)}" -> "{next_value}"\n'
 
                     else: #['al']
@@ -351,9 +368,17 @@ class MyInterpreter(Interpreter):
                         else:
                             #print("STRING", f'"{current_value}" -> "{next_value}"\n')
                             stringG += f'"{current_value}" -> "{next_value}"\n'
-                        
+                    # print("if bool bool",self.elseBool)
+                    if "if" in current_value and self.elseBool:
+                        then = extract_before_second_if(current_value)
+                        ult = extract_last(current_value)
+                        stringG += f'"{then}" -> "{next_value}"\n'
+                        stringG += f'"{ult}" -> "{next_value}"\n'
+                    elif "if" in current_value and not self.elseBool:
+                        pIf = extract_first(current_value)
+                        stringG += f'"{pIf}" -> "{next_value}"\n'
+
             else:
-                print("OLAAAAAAAA")
                 #print("Exp:", exp[0][0])
                 match = re.search(r'"([^"]*)"', exp[0][0])
                 if match:
@@ -363,21 +388,13 @@ class MyInterpreter(Interpreter):
                 #stringG += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(exp)}"'
         #print("CONTEUDOOOO", conteudo)
         #print("JKHSHKJSKHJSSJKJHSAKHJS", f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"')
-        #print("HHHHHHHHH", {extract_values_to_string(conteudo)})
+        print("HHHHHHHHH", {extract_values_to_string(conteudo)})
         if extract_values_to_string(conteudo) != '':
             stringG += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"\n'
 
-
-        #INCOMPLETO
-        #if len(exp) > 1:
-        #    pattern = r'"([^"]*)"'
-        #    for element in exp[1:]:
-        #        match = re.search(pattern, extract_values_to_string(element))
-        #        if match:
-        #            print("Match", match.group(1))
-        #            stringG += f'"{extract_values_to_string(exp[0])}" -> "{match.group(1)}"\n'    
-
+        self.elseBool = False
         if numeroFilhos == 3:
+            self.elseBool = True
             expElse = self.visit(tree.children[2]) or ""
             conteudoElse = ""
             if expElse:
@@ -404,6 +421,18 @@ class MyInterpreter(Interpreter):
                 #    match = re.search(pattern, extract_values_to_string(element))
                 #    if match:
                 #        stringElse += f'"{extract_values_to_string(expElse[0])}" -> "{match.group(1)}"\n'
+
+
+        #INCOMPLETO
+        #if len(exp) > 1:
+        #    pattern = r'"([^"]*)"'
+        #    for element in exp[1:]:
+        #        match = re.search(pattern, extract_values_to_string(element))
+        #        if match:
+        #            print("Match", match.group(1))
+        #            stringG += f'"{extract_values_to_string(exp[0])}" -> "{match.group(1)}"\n'    
+
+        
 
 
         stringG += stringElse
@@ -805,6 +834,7 @@ if(aboboras) {
 else{
     eueueue;
 }
+lapala;
 '''
 
 frase = '''
@@ -814,7 +844,10 @@ int b;
 int c;
 if(in){
     int dasd;
+}else{
+banana;
 }
+amoras;
 }
 if(incz){
 incz = incz + 1;
