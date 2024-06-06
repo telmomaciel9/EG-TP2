@@ -978,11 +978,11 @@ def process_frase(frase):
     # Simulação do processamento da frase e geração de HTML e grafo
     print("Processando a frase e gerando os ficheiros html...")
     
-    print("INICIO")
+    #print("INICIO")
     p = Lark(grammar)  # cria um objeto parser
-    print("Passou")
+    #print("Passou")
     tree = p.parse(frase)  # retorna uma tree
-    print(tree)
+    #print(tree)
     print(tree.pretty())
     pydot__tree_to_png(tree, 'lark.png')  # corrigido o nome da função
 
@@ -1129,7 +1129,6 @@ def process_frase(frase):
     # Gerar HTML com a imagem do grafo
     nome_arquivo_html = 'grafo.html'
     gerar_html_com_imagem(array, nome_arquivo_html)
-    print(f"Arquivo HTML gerado: {nome_arquivo_html}")
 
     pass
 
