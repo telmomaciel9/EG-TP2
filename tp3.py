@@ -3,19 +3,9 @@ from lark.tree import pydot__tree_to_png
 from lark.visitors import Interpreter
 import html
 import re
+import graphviz
 
-# def inicio_fim(string):
-#     first_quote_index = string.find('"')
-#     last_quote_index = string.rfind('"')
-    
-#     if first_quote_index != -1 and last_quote_index != -1:
-#         first_quote = string[first_quote_index + 1: string.find('"', first_quote_index + 1)]
-#         last_quote = string[string.rfind('"', 0, last_quote_index) + 1: last_quote_index]
-#         return first_quote.strip(), last_quote.strip()
-#     else:
-#         return None, None
-
-def remove_duplicate_lines(string):
+def remove_duplicate_lines(string): 
     lines = string.strip().split('\n')
     seen = set()
     unique_lines = []
@@ -31,40 +21,112 @@ def remove_duplicate_lines(string):
     unique_lines.reverse()
     return '\n'.join(unique_lines)
 
-def add_end_to_unlinked_nodes(graph_str):
-    lines = graph_str.strip().split('\n')
-    nodes = set()
-    linked_nodes = set()
+def add_shapes(string):
+    shapes = set()
+    pattern = r'"(if\s(?:[^"]|\\"|\\\\)*?)"'  # Expressão regular para encontrar "if" dentro de aspas
+    matches = re.findall(pattern, string)
+    for match in matches:
+        shapes.add(f'\n"{match}" [shape=diamond];')
+    return ''.join(shapes)
 
-    # Primeiro, coletar todos os nós e os nós que estão apontados
-    for line in lines:
-        match = re.match(r'"([^"]*)"\s*->\s*"([^"]*)"', line)
-        if match:
-            source, target = match.groups()
-            nodes.add(source)
-            nodes.add(target)
-            linked_nodes.add(source)
-        elif re.match(r'"([^"]*)"\s*\[shape=diamond\];', line):
-            node = re.match(r'"([^"]*)"', line).group(1)
-            nodes.add(node)
+def conect_express(graph_str):
+    # Separar a string por linhas
+    linhas = graph_str.strip().split('\n')
 
-    # Encontrar nós não ligados
-    unlinked_nodes = nodes - linked_nodes
-    #print("UNLINKED", unlinked_nodes)
+    # Função para verificar se a linha contém uma ligação
+    def tem_ligacao(linha):
+        return '->' in linha
+    
+    # Função para extrair os elementos da ligação
+    def extrair_elementos(linha):
+        return [parte.strip().strip('"') for parte in linha.split('->')]
 
-    # Adicionar links para "fim" para nós não ligados
-    result_lines = lines[:]
-    #for node in unlinked_nodes:
-    #    result_lines.append(f'"{node}" -> "fim"')
+    # Inicializar a lista de conexões
+    conexoes = []
 
-    return '\n'.join(result_lines)
+    # Remover espaços em branco das extremidades de cada linha e armazenar no array
+    array_de_linhas = [linha.strip() for linha in linhas]
 
-def extract_first(expr):
-    match = re.search(r'"([^"]*)"', expr)
-    if match:
-        return match.group(1)
-    return None
+    # Processar cada linha
+    i = 0
+    while i < len(linhas):
+        # Ignorar linhas vazias
+        if not array_de_linhas[i]:
+            i += 1
+            continue
+        
+        if tem_ligacao(array_de_linhas[i]):
+            elementos = extrair_elementos(array_de_linhas[i])
+            if i + 1 < len(linhas) and tem_ligacao(linhas[i + 1].strip()):
+                # Se a próxima linha também tiver uma ligação, apenas prosseguir
+                conexoes.append(array_de_linhas[i])
+                i += 1
+                continue
+            elif i + 1 < len(linhas):
+                # Se a próxima linha não tiver uma ligação, conectar o segundo elemento à próxima linha
+                prox_linha = linhas[i + 1].strip().strip('"') 
+                conexoes.append(array_de_linhas[i])
+                conexoes.append(f'"{elementos[1]}" -> "{prox_linha}"') 
+                i += 1
+            else:
+                i += 1
+        else:
+            # Verificar se a próxima linha é um único elemento
+            if i + 1 < len(linhas) and not tem_ligacao(linhas[i + 1].strip()):
+                prox_linha = linhas[i + 1].strip().strip('"')
+                conexoes.append(f'{array_de_linhas[i]} -> "{prox_linha}"')
+                i += 1
+            elif i + 1 < len(linhas):
+                # Conectar à primeira parte do próximo elemento com ligação
+                prox_elemento = extrair_elementos(linhas[i + 1].strip())[0]
+                conexoes.append(f'{array_de_linhas[i]} -> "{prox_elemento}"')
+                i += 1
+            else:
+                i += 1
+    
+    return '\n'.join(conexoes)
 
+
+def conectar_fim(string):
+    linhas = string.strip().split('\n')
+    apontados = set()
+    apontadores = set()
+    novas_linhas = []
+
+    # Iterar pelas linhas para coletar todos os apontadores e apontados
+    for linha in linhas:
+        if '->' in linha:
+            esquerda, direita = [parte.strip().strip('"') for parte in linha.split('->')]
+            apontadores.add(esquerda)
+            apontados.add(direita)
+            novas_linhas.append(f'"{esquerda}" -> "{direita}"')
+
+    # Encontrar elementos apontados que não são apontadores
+    finais = apontados - apontadores
+
+    # Adicionar as conexões para "fim" para os elementos que não apontam para nada
+    for final in finais:
+        novas_linhas.append(f'"{final}" -> "fim"')
+
+    return '\n'.join(novas_linhas)
+
+def processar_grafo(stringGrafoFinal):
+    stringGrafoFinal = f'"inicio"\n{stringGrafoFinal}\n'
+    stringGrafoFinal = remove_duplicate_lines(stringGrafoFinal)
+    stringGrafoFinal = conect_express(stringGrafoFinal)
+    stringGrafoFinal = conectar_fim(stringGrafoFinal)
+    stringGrafoFinal += add_shapes(stringGrafoFinal)
+    return stringGrafoFinal
+
+def extract_values_to_string(data):
+    if isinstance(data, list):
+        result = []
+        for item in data:
+            result.append(extract_values_to_string(item))
+        return ' '.join(result)
+    else:
+        return str(data)
+    
 def extract_before_second_if(expr):
     matches = re.findall(r'"if[^"]*"', expr)
     if len(matches) >= 2:
@@ -80,38 +142,17 @@ def extract_before_second_if(expr):
                 return prev_matches[-1]
     return None
 
+def extract_first(expr):
+    match = re.search(r'"([^"]*)"', expr)
+    if match:
+        return match.group(1)
+    return None
+
 def extract_last(expr):
     matches = re.findall(r'"([^"]*)"', expr)
     if matches:
         return matches[-1]
     return None
-
-def add_shapes(string):
-    shapes = set()
-    pattern = r'"(if\s(?:[^"]|\\"|\\\\)*?)"'  # Expressão regular para encontrar "if" dentro de aspas
-    matches = re.findall(pattern, string)
-    for match in matches:
-        shapes.add(f'\n"{match}" [shape=diamond];')
-    return "\n".join(shapes)
-
-def inicio(string):
-    quote_indices = [i for i, char in enumerate(string) if char == '"']
-    
-    if len(quote_indices) >= 2:
-        first_quote = string[quote_indices[0] + 1: quote_indices[1]]
-      
-        return first_quote.strip()
-    else:
-        return None
-
-def extract_values_to_string(data):
-    if isinstance(data, list):
-        result = []
-        for item in data:
-            result.append(extract_values_to_string(item))
-        return ' '.join(result)
-    else:
-        return str(data)
 
 def comparatorIdentifier(dic):
     tipo = dic[0]
@@ -161,95 +202,7 @@ def comparator(dic,tipoBOOL,tipoNOVO,declAuxValue):
         dic = (tipo,temValue,boolRedecl,bool2,bool3,bool4)
 
         return dic
-    
 
-def conect_express(graph_str):
-    # Separar a string por linhas
-    linhas = graph_str.strip().split('\n')
-
-    # Função para verificar se a linha contém uma ligação
-    def tem_ligacao(linha):
-        return '->' in linha
-    
-    # Função para extrair os elementos da ligação
-    def extrair_elementos(linha):
-        return [parte.strip().strip('"') for parte in linha.split('->')]
-
-    # Inicializar a lista de conexões
-    conexoes = []
-
-    # Remover espaços em branco das extremidades de cada linha e armazenar no array
-    array_de_linhas = [linha.strip() for linha in linhas]
-
-    # Processar cada linha
-    i = 0
-    while i < len(linhas):
-        # Ignorar linhas vazias
-        if not array_de_linhas[i]:
-            i += 1
-            continue
-        
-        if tem_ligacao(array_de_linhas[i]):
-            elementos = extrair_elementos(array_de_linhas[i])
-            if i + 1 < len(linhas) and tem_ligacao(linhas[i + 1].strip()):
-                # Se a próxima linha também tiver uma ligação, apenas prosseguir
-                conexoes.append(array_de_linhas[i])
-                #print("00000",array_de_linhas[i])
-                i += 1
-                continue
-            elif i + 1 < len(linhas):
-                # Se a próxima linha não tiver uma ligação, conectar o segundo elemento à próxima linha
-                prox_linha = linhas[i + 1].strip().strip('"')
-                #print("ELEMENTOSSSS",elementos[1])  
-                conexoes.append(array_de_linhas[i])
-                conexoes.append(f'"{elementos[1]}" -> "{prox_linha}"') 
-                #print("11111",f'"{elementos[1]}" -> "{prox_linha}"')
-                i += 1
-            else:
-                i += 1
-        else:
-            # Verificar se a próxima linha é um único elemento
-            if i + 1 < len(linhas) and not tem_ligacao(linhas[i + 1].strip()):
-                prox_linha = linhas[i + 1].strip().strip('"')
-                conexoes.append(f'{array_de_linhas[i]} -> "{prox_linha}"')
-                #print("22222",f'{array_de_linhas[i]} -> "{prox_linha}"')
-                i += 1
-            elif i + 1 < len(linhas):
-                # Conectar à primeira parte do próximo elemento com ligação
-                prox_elemento = extrair_elementos(linhas[i + 1].strip())[0]
-                conexoes.append(f'{array_de_linhas[i]} -> "{prox_elemento}"')
-                #print("33333",f'{array_de_linhas[i]} -> "{prox_elemento}"')
-                i += 1
-            else:
-                #conexoes.append(array_de_linhas[i])
-                #print("11111",array_de_linhas[i])
-                i += 1
-    
-    return '\n'.join(conexoes)
-
-
-def conectar_fim(string):
-    linhas = string.strip().split('\n')
-    apontados = set()
-    apontadores = set()
-    novas_linhas = []
-
-    # Iterar pelas linhas para coletar todos os apontadores e apontados
-    for linha in linhas:
-        if '->' in linha:
-            esquerda, direita = [parte.strip().strip('"') for parte in linha.split('->')]
-            apontadores.add(esquerda)
-            apontados.add(direita)
-            novas_linhas.append(f'"{esquerda}" -> "{direita}"')
-
-    # Encontrar elementos apontados que não são apontadores
-    finais = apontados - apontadores
-
-    # Adicionar as conexões para "fim" para os elementos que não apontam para nada
-    for final in finais:
-        novas_linhas.append(f'"{final}" -> "fim"')
-
-    return '\n'.join(novas_linhas)
 
 class MyInterpreter(Interpreter):
     def __init__(self):
@@ -269,48 +222,44 @@ class MyInterpreter(Interpreter):
         self.arrayString = []
         self.ativoIF = []
         self.ativoWHILE = []
+        self.assign = False
+        self.declare = False
         self.ifAuxArray = []
         self.elseBool = False
+        self.funcion = None
+        self.isfuncion = False
 
     def start(self, tree):
-        print("Interpreter started")
+        #print("Interpreter started")
         self.visit_children(tree)
-        #self.stringGrafo = f"digraph Programa{{\n{self.stringGrafo}}}" #FALTA O INICIO E FIM
-        print("Start", self.arrayString)
-        #arrayDasStrings = self.arrayString[::-1]
-        #print("Array das strings-REVERSSSSS", arrayDasStrings)
+        #print("Start", self.arrayString)
         arrayDasStrings=self.arrayString
         stringGrafoFinal = ""
         if arrayDasStrings:
-            print("Array das strings", arrayDasStrings)
             for i in range(len(arrayDasStrings)):
                 if re.search(r'"if .*" -> ""', arrayDasStrings[i]):
                     arrayDasStrings[i] = re.sub(r'"if .*" -> ""', '\n', arrayDasStrings[i])
-            print("Array das stringsMOD", arrayDasStrings)
 
 
             stringGrafoFinal = "\n".join(arrayDasStrings)
 
-        stringGrafoFinal = f'"inicio"\n{stringGrafoFinal}\n'
+        #print("GRAFO FINAL\n", stringGrafoFinal)
+        grafo_processado = processar_grafo(stringGrafoFinal)        
 
-        stringGrafoFinal = add_end_to_unlinked_nodes(stringGrafoFinal)
-
-        stringGrafoFinal = remove_duplicate_lines(stringGrafoFinal)
-
-        stringGrafoFinal = conect_express(stringGrafoFinal)
-
-        stringGrafoFinal = conectar_fim(stringGrafoFinal)
-
-        stringGrafoFinal += add_shapes(stringGrafoFinal)
-        
-
-        return self.dicVar, self.dicInstrucoes, self.ifsMerge, self.estruturasControlo, stringGrafoFinal
+        return self.dicVar, self.dicInstrucoes, self.ifsMerge, self.estruturasControlo, grafo_processado
 
     def declaration(self, tree): #Define uma função, é preciso guardar a scope
         for elemento in tree.children:
             if (isinstance(elemento, Token) and elemento.type == 'IDENTIFIER'):
-                self.scope = elemento
+                self.scope = elemento 
+        
+        self.isfuncion = True
+        self.funcion = ""
+        
         self.visit_children(tree)
+
+        #self.arrayString.append(self.funcion)
+        self.isfuncion = False
         self.scope = "Global"
 
     def paramsfunc(self, tree):
@@ -333,6 +282,7 @@ class MyInterpreter(Interpreter):
             self.dicVar[key] = v 
         else:
             self.dicVar[key] = (tipo, True, False, False, False, False)
+        
 
     def decl(self, tree):
         nomeVAR = None
@@ -356,11 +306,13 @@ class MyInterpreter(Interpreter):
             else:
                 self.dicVar[key] = (tipo, False, False, False, False, False)
 
-        expressao = f'"{tipo} {nomeVAR}"'
-        if not self.ativoIF and not self.ativoWHILE: ##ISSO
+        if self.assign:
+            expressao = f'{tipo} {nomeVAR}'
+        else:
+            expressao = f'"{tipo} {nomeVAR}"'
+        if not self.ativoIF and not self.ativoWHILE and not self.assign: 
             self.arrayString.append(expressao)
-        
-        
+            
         return expressao
     
     def declsemtipo(self, tree):
@@ -376,9 +328,8 @@ class MyInterpreter(Interpreter):
         else:                           
             self.dicVar[key] = (None, False, False, True, True, False)
 
-        #print("VARRRR", nomeVAR)
 
-        if not self.ativoIF and not self.ativoWHILE: ##ISSO
+        if not self.ativoIF and not self.ativoWHILE: 
             self.arrayString.append(f'"{nomeVAR}"')
 
         return nomeVAR
@@ -418,48 +369,26 @@ class MyInterpreter(Interpreter):
         stringG = ""
         conteudo = ""
 
-        #print("EXP-fififif", exp)
         if exp:
-            print("EXPPP", exp) #
-            #if len(exp) > 1:
-            #    stringG += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(exp[0])}"\n'
-            #    for i in range(len(exp)-2):
-            #        stringG += f'"{extract_values_to_string(exp[i])}" -> "{extract_values_to_string(exp[i+1])}"\n'
-            #    if extract_first(extract_values_to_string(exp[len(exp)-1])):
-            #        stringG += f'"{extract_values_to_string(exp[len(exp)-2])}" -> "{extract_first(extract_values_to_string(exp[len(exp)-1]))}"\n'
-            #    else:
-            #        stringG += f'"{extract_values_to_string(exp[len(exp)-2])}" -> "{extract_values_to_string(exp[len(exp)-1])}"\n'
+            print("EXP", exp)   
             if len(exp) > 1:
-            
-                stringG += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(exp[0])}"\n'
-            
-                for i in range(0, len(exp) - 1):
-                    # [['al'], ['al2'], ['"if eu" -> "al3"'], ['poa']]
-
-                    
+                stringG += f'"if {extract_values_to_string(n)}" -> {extract_values_to_string(exp[0])}\n'
+                for i in range(0, len(exp) - 1):                    
                     current_value = extract_values_to_string(exp[i])
-                    print("CURRENT VALUE", current_value)
                     next_value = extract_values_to_string(exp[i + 1])
-                    print("NEXT VALUE", next_value)
                     
-                    if extract_first(current_value): #['"if eu" -> "al3"']
-                        print("STRING-", extract_first(current_value),"\n")
-                        stringG += f'{current_value}\n'
+                    if extract_first(current_value): 
+                        #stringG += f'{current_value}\n'
                         if extract_first(next_value):
-                            print("STRING-2", f'"{extract_last(current_value)}" -> "{extract_first(next_value)}"\n')
                             stringG += f'"{extract_last(current_value)}" -> "{extract_first(next_value)}"\n'
                         else:
-                            print("STRING-3", f'"{extract_last(current_value)}" -> "{next_value}"\n')
                             stringG += f'"{extract_last(current_value)}" -> "{next_value}"\n'
 
-                    else: #['al']
+                    else: 
                         if extract_first(next_value):
-                            #print("STRING", f'"{current_value}" -> "{extract_first(next_value)}"\n')
                             stringG += f'"{current_value}" -> "{extract_first(next_value)}"\n'
                         else:
-                            #print("STRING", f'"{current_value}" -> "{next_value}"\n')
                             stringG += f'"{current_value}" -> "{next_value}"\n'
-                    # print("if bool bool",self.elseBool)
                     if "if" in current_value and self.elseBool:
                         then = extract_before_second_if(current_value)
                         ult = extract_last(current_value)
@@ -468,20 +397,19 @@ class MyInterpreter(Interpreter):
                     elif "if" in current_value and not self.elseBool:
                         pIf = extract_first(current_value)
                         stringG += f'"{pIf}" -> "{next_value}"\n'
-
             else:
-                #print("Exp:", exp[0][0])
+                print("OIII")
                 match = re.search(r'"([^"]*)"', exp[0][0])
                 if match:
                     conteudo = match.group(1)
                 else:
                     conteudo = exp[0][0]
-                #stringG += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(exp)}"'
-        #print("CONTEUDOOOO", conteudo)
-        #print("JKHSHKJSKHJSSJKJHSAKHJS", f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"')
-        print("HHHHHHHHH", {extract_values_to_string(conteudo)})
+
         if extract_values_to_string(conteudo) != '':
             stringG += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"\n'
+        else:
+            print("AQUIII", f'"if {extract_values_to_string(n)}"\n')
+            #stringG += f'"if {extract_values_to_string(n)}"\n'
 
         self.elseBool = False
         if numeroFilhos == 3:
@@ -500,48 +428,24 @@ class MyInterpreter(Interpreter):
             
             if len(expElse) > 1:
                 for i in range(len(expElse)-2):
-                    stringElse += f'"{extract_values_to_string(expElse[i])}" -> "{extract_values_to_string(expElse[i+1])}"\n'
+                    stringElse += f'{extract_values_to_string(expElse[i])} -> {extract_values_to_string(expElse[i+1])}\n'
                 if extract_first(extract_values_to_string(expElse[len(expElse)-1])):
-                    stringElse += f'"{extract_values_to_string(expElse[len(expElse)-2])}" -> "{extract_first(extract_values_to_string(expElse[len(expElse)-1]))}"\n'
+                    stringElse += f'{extract_values_to_string(expElse[len(expElse)-2])} -> "{extract_first(extract_values_to_string(expElse[len(expElse)-1]))}"\n'
                 else:
                     stringElse += f'"{extract_values_to_string(expElse[len(expElse)-2])}" -> "{extract_values_to_string(expElse[len(expElse)-1])}"\n'
-                #print("ExpElse", expElse)
-                #pattern = r'"([^"]*)"'
-                #for element in expElse[1:]:
-                #    print("Element", element)
-                #    match = re.search(pattern, extract_values_to_string(element))
-                #    if match:
-                #        stringElse += f'"{extract_values_to_string(expElse[0])}" -> "{match.group(1)}"\n'
-
-
-        #INCOMPLETO
-        #if len(exp) > 1:
-        #    pattern = r'"([^"]*)"'
-        #    for element in exp[1:]:
-        #        match = re.search(pattern, extract_values_to_string(element))
-        #        if match:
-        #            print("Match", match.group(1))
-        #            stringG += f'"{extract_values_to_string(exp[0])}" -> "{match.group(1)}"\n'    
-
-        
 
 
         stringG += stringElse
-        #print("STRINGGGGG!!!!", stringG)
         self.ifAuxArray.append(stringG)
-        # self.arrayString.append(stringG)
         self.ativoIF.pop()
         if not self.ativoIF:
-            #print("IFARRAY", self.ifAuxArray)
             self.arrayString += self.ifAuxArray[::-1]
-        
-        #print("STRINGGGGG", stringG)
         return stringG
 
 
     def while_statement(self, tree):
         self.boolIF = False
-        self.ativoWHILE.append( True)
+        self.ativoWHILE.append(True)
 
         if self.estrutura:
             self.estruturasControlo += 1
@@ -553,49 +457,32 @@ class MyInterpreter(Interpreter):
         exp = self.visit(tree.children[1]) or ""
         self.estrutura.pop()
         string = ""
-        #print("NNNNNNN", n)
-        #print("EXPPPPP", exp)
-
         if exp:
             string += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(exp[0])}"\n'
-            #print("STRINGGGG", string)
-            for i in range(0, len(exp) - 1):
-                # [['al'], ['al2'], ['"if eu" -> "al3"'], ['poa']]
-                
-                current_value = extract_values_to_string(exp[i])
-                #print("CURRENT VALUE", current_value)
-                next_value = extract_values_to_string(exp[i + 1])
-                #print("NEXT VALUE", next_value)
-                
-                if extract_first(current_value): 
-                    #print("STRING-", extract_first(current_value),"\n")
-                    string += f'{current_value}\n'
-                    if extract_first(next_value):
-                        #print("STRING-2", f'"{extract_last(current_value)}" -> "{extract_first(next_value)}"\n')
-                        string += f'"{extract_last(current_value)}" -> "{extract_first(next_value)}"\n'
-                    else:
-                        #print("STRING-3", f'"{extract_last(current_value)}" -> "{next_value}"\n')
-                        string += f'"{extract_last(current_value)}" -> "{next_value}"\n'
+            if len(exp) > 1:
+                for i in range(0, len(exp) - 1):
 
-                else: 
-                    if extract_first(next_value):
-                        #print("STRING", f'"{current_value}" -> "{extract_first(next_value)}"\n')
-                        string += f'"{current_value}" -> "{extract_first(next_value)}"\n'
-                    else:
-                        #print("STRING", f'"{current_value}" -> "{next_value}"\n')
-                        string += f'"{current_value}" -> "{next_value}"\n'
-                    # print("if bool bool",self.elseBool)
-                
-                #string += f'"if {next_value}"\n'
-            string += f'"{next_value}" -> "if {extract_values_to_string(n)}" \n'
+                    current_value = extract_values_to_string(exp[i])
+                    next_value = extract_values_to_string(exp[i + 1])
+
+                    if extract_first(current_value): 
+                        string += f'{current_value}\n'
+                        if extract_first(next_value):
+                            string += f'"{extract_last(current_value)}" -> "{extract_first(next_value)}"\n'
+                        else:
+                            string += f'"{extract_last(current_value)}" -> "{next_value}"\n'
+
+                    else: 
+                        if extract_first(next_value):
+                            string += f'"{current_value}" -> "{extract_first(next_value)}"\n'
+                        else:
+                            string += f'"{current_value}" -> "{next_value}"\n'
+
+                string += f'"{next_value}" -> "if {extract_values_to_string(n)}" \n'
+            else:
+                string += f'"{extract_values_to_string(exp[0])}" -> "if {extract_values_to_string(n)}" \n'
         else:
             string += f'"if {extract_values_to_string(n)}"\n'
-
-        # string = f"""
-        # "while {exp}" -> "{body}";
-        # "{body}" -> "while {exp
-        # "while {exp}" -> ""; 
-        # """
 
         self.arrayString.append(string)
         self.ativoWHILE.pop()
@@ -618,40 +505,49 @@ class MyInterpreter(Interpreter):
 
     def assign_statement(self, tree):
         self.boolIF = False
+        self.assign = True
 
         self.dicInstrucoes['atribuicoes'] += 1
         self.declAuxValue = True
         exp = self.visit_children(tree) or ""
         self.declAuxValue = False
 
+        string = ""
 
-        string = f'{extract_values_to_string(exp)}'
-        if not self.ativoIF and not self.ativoWHILE: ##ISSO
+        if not self.ativoIF and not self.ativoWHILE: 
+            string = f'"{extract_values_to_string(exp)}"'
             self.arrayString.append(string)
+        else:
+            string = f'{extract_values_to_string(exp)}'
 
+        self.assign = False
         return string
 
     def print_statement(self, tree):
         self.boolIF = False
 
         exp = self.visit_children(tree) or ""
-        string = f'"print" -> "{exp}"'
+        string = f'"print({extract_values_to_string(exp)})"'
         self.arrayString.append(string)
         return string
 
     def declare_statement(self, tree):
         self.boolIF = False
+        self.declare = True
         exp = self.visit_children(tree) or ""
         
-
+        self.declare = False
         return extract_values_to_string(exp)
     
     def call_function(self, tree):
         self.boolIF = False
 
         exp = self.visit_children(tree) or ""
-        string = f'"call" -> "{exp}"'
-        self.arrayString.append(string)
+        if self.assign:
+            string = f'{extract_values_to_string(exp)}'
+        else:
+            string = f'"{extract_values_to_string(exp)}"'
+            self.arrayString.append(string)
         return string
 
     def return_statement(self, tree):
@@ -659,7 +555,7 @@ class MyInterpreter(Interpreter):
         self.boolIF = False
 
         exp = self.visit_children(tree) or ""
-        string = f'"return" -> "{exp}"'
+        string = f'"return {extract_values_to_string(exp)}"'
         self.arrayString.append(string)
         return string
 
@@ -673,7 +569,7 @@ class MyInterpreter(Interpreter):
         self.visit_children(tree)
 
         self.estrutura.append(True)
-        exp = self.visit(tree.children[1]) or ""  # Visita novamente o corpo do switch_case para verificar aninhamentos
+        exp = self.visit(tree.children[1]) or ""  
         self.estrutura.pop()
         return exp
 
@@ -887,46 +783,32 @@ INTEGER: /\d+/
 
 '''
 
-frase0 = '''
-
+frase1 = '''
 if ( a * (a + b) ) {     
     int a; 
     int b;
-    int c;
     if (in) {
+        int debug;
         if(aboboras) {
             int al;
             int al2;
-            int al3;
         }
-        int teste;
     } else {
         if(coae){
             c = 2;
         }
         else{
-            int e;
             int h;
+            int i;
         }
-
-    }
-}else {
-    int d;
-    int f; 
-    if (out){
-        int x;
-        int y;
-        int z;
-    }
-    else {
-        int w;
     }
 }
 
 
+
 '''
 
-frase11= '''
+frase2= '''
 a;
 b;
 if(aboboras) {
@@ -950,7 +832,7 @@ else{
 lapala;
 '''
 
-frase = '''
+frase3 = '''
 int c;
 int d;
 while (inc2 < 10) {
@@ -961,20 +843,22 @@ int a;
 int b;
 '''
 
-frase2 = '''
+frase4 = '''
 
-void list_sum(int array a) {
+void sum(int array a) {
     int inc = 0;
     int counter = 0;
+    int c;
     while (inc < 10) {
         inc = inc + 1;
+        counter = counter + 2;
     }
     print(counter);
 }
 
 '''
 
-frase3 = '''
+frase5 = '''
 
 void list_sum2(int array a) {
     int inc;
@@ -995,7 +879,7 @@ void list_sum2(int array a) {
 
 '''
 
-frase4 = '''
+frase6 = '''
 
 void last(int list a, int b) {
     int list result;
@@ -1005,7 +889,7 @@ void last(int list a, int b) {
 
 '''
 
-frase5 = '''
+frase7 = '''
 
 string word(string a, string b) {
     boolean in = FALSE;
@@ -1013,12 +897,14 @@ string word(string a, string b) {
     int inc = 1;
     string value;
     if ( a * (a + b) ) {
+        ola;
         if (a == b) {
-
+            skj;
         }
 
         if (in) {
-             if (in) {
+            if (in2) {
+                sss;
             }
         }
         
@@ -1033,7 +919,7 @@ string word(string a, string b) {
 '''
 
 
-frase6 = '''
+frase8 = '''
 
 
 void teste_somar_elementos() {
@@ -1049,7 +935,7 @@ void teste_adicionar_elemento() {
 
 '''
 
-frase7 = '''
+frase9 = '''
 
 void executar_acao(int opcao) {
     switch (opcao) {
@@ -1075,7 +961,7 @@ void executar_acao(int opcao) {
 }
 '''
 
-frase8 = '''
+frase10 = '''
 
 void teste_somar_elementos() {
     int set = { 1, 2, 3, 4, 5 } ;
@@ -1106,7 +992,7 @@ void teste_adicionar_elemento() {
 print("INICIO")
 p = Lark(grammar)  # cria um objeto parser
 print("Passou")
-tree = p.parse(frase11)  # retorna uma tree
+tree = p.parse(frase1)  # retorna uma tree
 print(tree)
 print(tree.pretty())
 pydot__tree_to_png(tree, 'lark.png')  # corrigido o nome da função
@@ -1227,4 +1113,41 @@ with open('output.html', 'w') as f:
     f.write("</body></html>")
 
 
-print("\n\nSTRING FINAL\n\n",array)
+print("digraph G{\n",array, "\n}")
+
+def gerar_html_com_imagem(grafo_dot, nome_arquivo_html):
+    dot = graphviz.Digraph()
+    for line in grafo_dot.strip().split('\n'):
+        if '->' in line:
+            source, target = re.findall(r'"(.*?)"', line)
+            dot.edge(source, target)
+        else:
+            match = re.match(r'"(.*?)"\s*\[shape=(.*?)\];', line)
+            if match:
+                node, shape = match.groups()
+                dot.node(node, shape=shape)
+            else:
+                node = re.findall(r'"(.*?)"', line)
+                if node:
+                    dot.node(node[0])
+
+    nome_arquivo_imagem = 'grafo'
+    dot.render(filename=nome_arquivo_imagem, format='png', cleanup=True)
+    
+    conteudo_html = f'''
+    <html>
+    <head><title>Grafo</title></head>
+    <body>
+    <h1>Grafo Gerado</h1>
+    <img src="{nome_arquivo_imagem}.png">
+    </body>
+    </html>
+    '''
+    
+    with open(nome_arquivo_html, 'w') as f:
+        f.write(conteudo_html)
+
+# Gerar HTML com a imagem do grafo
+nome_arquivo_html = 'grafo.html'
+gerar_html_com_imagem(array, nome_arquivo_html)
+print(f"Arquivo HTML gerado: {nome_arquivo_html}")
