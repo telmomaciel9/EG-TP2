@@ -1,3 +1,5 @@
+import subprocess
+import webbrowser
 from lark import Lark,Tree,Token
 from lark.tree import pydot__tree_to_png
 from lark.visitors import Interpreter
@@ -370,7 +372,6 @@ class MyInterpreter(Interpreter):
         conteudo = ""
 
         if exp:
-            print("EXP", exp)   
             if len(exp) > 1:
                 stringG += f'"if {extract_values_to_string(n)}" -> {extract_values_to_string(exp[0])}\n'
                 for i in range(0, len(exp) - 1):                    
@@ -398,7 +399,6 @@ class MyInterpreter(Interpreter):
                         pIf = extract_first(current_value)
                         stringG += f'"{pIf}" -> "{next_value}"\n'
             else:
-                print("OIII")
                 match = re.search(r'"([^"]*)"', exp[0][0])
                 if match:
                     conteudo = match.group(1)
@@ -407,9 +407,6 @@ class MyInterpreter(Interpreter):
 
         if extract_values_to_string(conteudo) != '':
             stringG += f'"if {extract_values_to_string(n)}" -> "{extract_values_to_string(conteudo)}"\n'
-        else:
-            print("AQUIII", f'"if {extract_values_to_string(n)}"\n')
-            #stringG += f'"if {extract_values_to_string(n)}"\n'
 
         self.elseBool = False
         if numeroFilhos == 3:
@@ -803,9 +800,6 @@ if ( a * (a + b) ) {
         }
     }
 }
-
-
-
 '''
 
 frase2= '''
@@ -844,7 +838,6 @@ int b;
 '''
 
 frase4 = '''
-
 void sum(int array a) {
     int inc = 0;
     int counter = 0;
@@ -855,11 +848,9 @@ void sum(int array a) {
     }
     print(counter);
 }
-
 '''
 
 frase5 = '''
-
 void list_sum2(int array a) {
     int inc;
     int counter = 0;
@@ -876,21 +867,17 @@ void list_sum2(int array a) {
     }
     print(counter);
 }
-
 '''
 
 frase6 = '''
-
 void last(int list a, int b) {
     int list result;
     result = cons(b, a);
     print('nice!');
 }
-
 '''
 
 frase7 = '''
-
 string word(string a, string b) {
     boolean in = FALSE;
     int inc = 0;
@@ -915,13 +902,10 @@ string word(string a, string b) {
     }
     return value;
 }
-
 '''
 
 
 frase8 = '''
-
-
 void teste_somar_elementos() {
     int array lista = [1, c, 3, 4, 5];
     somar_elementos(lista);
@@ -932,11 +916,9 @@ void teste_adicionar_elemento() {
     int elemento = 4;
     adicionar_elemento(lista_original, elemento);
 }
-
 '''
 
 frase9 = '''
-
 void executar_acao(int opcao) {
     switch (opcao) {
         case 1:
@@ -962,7 +944,6 @@ void executar_acao(int opcao) {
 '''
 
 frase10 = '''
-
 void teste_somar_elementos() {
     int set = { 1, 2, 3, 4, 5 } ;
     somar_elementos(lista);
@@ -973,181 +954,215 @@ void teste_adicionar_elemento() {
     int elemento = 4;
     adicionar_elemento(original, elemento);
 }
-
 '''
 
+# Lista de frases
+frases = [frase1, frase2, frase3, frase4, frase5, frase6, frase7, frase8, frase9, frase10]
+
+def print_menu():
+    print("Escolha uma frase:\n")
+    for i, frase in enumerate(frases, 1):
+        print(f"Exemplo {i}:")
+        print(frase.strip())   # Remova espaços em branco extras
+        print(f"{'-' * 50}\n") # Linha horizontal para separar os exemplos
+
+    print("0. Sair")
+
+def print_file_menu():
+    print("\nEscolha uma opção:")
+    print("1. Abrir relatório de análise das variáveis")
+    print("2. Abrir grafo")
+    print("0. Voltar")
+
+def process_frase(frase):
+    # Simulação do processamento da frase e geração de HTML e grafo
+    print("Processando a frase e gerando os ficheiros html...")
+    
+    print("INICIO")
+    p = Lark(grammar)  # cria um objeto parser
+    print("Passou")
+    tree = p.parse(frase)  # retorna uma tree
+    print(tree)
+    print(tree.pretty())
+    pydot__tree_to_png(tree, 'lark.png')  # corrigido o nome da função
+
+
+    #print("interpreter")
+    dic,dicCenas, ifs, estruturasControlo,  array = MyInterpreter().visit(tree)
+
+
+    
+    #print("Estruturas de controlo:", estruturasControlo)
+    #exercicio 1
+    listaRedeclaracoes = []
+    listaNaoRedeclaracoes = []
+    listaNaoInicializadas = []
+    listaNaoMencionadas = []
+
+    for key, value in dic.items():
+        tipo = value[0]
+        boolRedecl = value[2]
+        bool2 = value[3]
+        bool3 = value[4]
+        bool4 = value[5]
+        if (boolRedecl):
+            listaRedeclaracoes.append(key)
+        if (bool2):
+            listaNaoRedeclaracoes.append(key)
+        if (bool3):
+            listaNaoInicializadas.append(key)
+        if tipo != None and not (bool4):
+            listaNaoMencionadas.append(key)
+
+    #print("Variaveis redeclaradas: ", listaRedeclaracoes)
+    #print("Variaveis não declaradas: ", listaNaoRedeclaracoes)
+    #print("Variaveis usadas mas não inicializadas(sem valor): ", listaNaoInicializadas)
+    #print("Variaveis nao mencionadas mas declaradas: ", listaNaoMencionadas)
+
+    #exericio 2
+    dicTipos = {}
+    for key, value in dic.items():
+        #print(f"{key} : {value}")
+        tipo = value[0]
+        if tipo not in dicTipos:
+            dicTipos[tipo] = [key]
+        else:
+            dicTipos[tipo].append(key)
+
+    #print(f"Dicionario de tipos: {dicTipos}")
 
 
 
-
-#Lançamento do desafio de especificar uma LPI, contendo:
-#		Int, Set, Array, Tuplo, String, Lista
-#		Decls + Insts
-#		Insts : Atrib, Leitura, Escrita, 
- #                    	          Seleção (SE, CASO), 
-  #                   	          Repetição (ENQ-FAZER, REPETIR-ATE, PARA-interv-FAZER
-	#	Opers: +-*/%^    ;  []  ; . (seleção de 1campo) ; cons, snoc, in, head/tail ->>>
-     #       	Funções com retorno e parametros 
-
-print("INICIO")
-p = Lark(grammar)  # cria um objeto parser
-print("Passou")
-tree = p.parse(frase1)  # retorna uma tree
-print(tree)
-print(tree.pretty())
-pydot__tree_to_png(tree, 'lark.png')  # corrigido o nome da função
+    #HTML
 
 
 
+    # Assuming the data is as follows:
 
 
+    struturasControlo = dicCenas
 
+    section4 = estruturasControlo
+    section5 = ifs
 
+    # Create the HTML file
+    with open('output.html', 'w') as f:
+        f.write("<html><body>")
 
+        # Section 1
+        f.write("<h1>Section 1</h1>")
+        f.write("<h4>Lista de todas as variáveis do programa indicando os casos de: redeclaração ou não-declaração; variáveisusadas mas não inicializadas; variáveis declaradas e nunca mencionadas.</h4>")
+        for lista, name in zip([listaRedeclaracoes, listaNaoRedeclaracoes, listaNaoInicializadas, listaNaoMencionadas],
+                            ['listaRedeclaracoes', 'listaNaoRedeclaracoes', 'listaNaoInicializadas', 'listaNaoMencionadas']):
+            f.write(f"<h2>{name}</h2>")
+            f.write("<table>")
+            for item in lista:
+                f.write(f"<tr><td>{item}</td></tr>")
+            f.write("</table>")
 
-#print("interpreter")
-dic,dicCenas, ifs, estruturasControlo,  array = MyInterpreter().visit(tree)
-
-
- 
-#print("Estruturas de controlo:", estruturasControlo)
-#print(dicCenas)
-#print("ifs",ifs)
-#exercicio 1
-listaRedeclaracoes = []
-listaNaoRedeclaracoes = []
-listaNaoInicializadas = []
-listaNaoMencionadas = []
-
-for key, value in dic.items():
-    tipo = value[0]
-    boolRedecl = value[2]
-    bool2 = value[3]
-    bool3 = value[4]
-    bool4 = value[5]
-    if (boolRedecl):
-        listaRedeclaracoes.append(key)
-    if (bool2):
-        listaNaoRedeclaracoes.append(key)
-    if (bool3):
-        listaNaoInicializadas.append(key)
-    if tipo != None and not (bool4):
-        listaNaoMencionadas.append(key)
-
-#print("Variaveis redeclaradas: ", listaRedeclaracoes)
-#print("Variaveis não declaradas: ", listaNaoRedeclaracoes)
-#print("Variaveis usadas mas não inicializadas(sem valor): ", listaNaoInicializadas)
-#print("Variaveis nao mencionadas mas declaradas: ", listaNaoMencionadas)
-
-#exericio 2
-dicTipos = {}
-for key, value in dic.items():
-    #print(f"{key} : {value}")
-    tipo = value[0]
-    if tipo not in dicTipos:
-        dicTipos[tipo] = [key]
-    else:
-        dicTipos[tipo].append(key)
-
-#print(f"Dicionario de tipos: {dicTipos}")
-
-
-#exercicio 3
-
-
-
-#exercicio 4
-
-
-#HTML
-
-
-
-# Assuming the data is as follows:
-
-
-struturasControlo = dicCenas
-
-section4 = estruturasControlo
-section5 = ifs
-
-# Create the HTML file
-with open('output.html', 'w') as f:
-    f.write("<html><body>")
-
-    # Section 1
-    f.write("<h1>Section 1</h1>")
-    for lista, name in zip([listaRedeclaracoes, listaNaoRedeclaracoes, listaNaoInicializadas, listaNaoMencionadas],
-                        ['listaRedeclaracoes', 'listaNaoRedeclaracoes', 'listaNaoInicializadas', 'listaNaoMencionadas']):
-        f.write(f"<h2>{name}</h2>")
+        # Section 2
+        f.write("<h1>Section 2</h1>")
+        f.write("<h4>Total de varáveis declaradas por cada Tipo de dados usados.</h4>")
         f.write("<table>")
-        for item in lista:
-            f.write(f"<tr><td>{item}</td></tr>")
+        for key, values in dicTipos.items():
+            f.write(f"<tr><th>{key}</th>")
+            for value in values:
+                f.write(f"<td>{value}</td>")
+            f.write("</tr>")
         f.write("</table>")
 
-    # Section 2
-    f.write("<h1>Section 2</h1>")
-    f.write("<table>")
-    for key, values in dicTipos.items():
-        f.write(f"<tr><th>{key}</th>")
-        for value in values:
-            f.write(f"<td>{value}</td>")
-        f.write("</tr>")
-    f.write("</table>")
+        # Section 3
+        f.write("<h1>Section 3</h1>")
+        f.write("<h4>Total de instruções que formam o corpo do programa, indicando o número de instruções de cada tipo (atribuições, leitura e escrita, condicionais e cíclicas).</h4>")
+        f.write("<table>")
+        for key, value in struturasControlo.items():
+            f.write(f"<tr><td>{key}</td><td>{value}</td></tr>")
+        f.write("</table>")
 
-    # Section 3
-    f.write("<h1>Section 3</h1>")
-    f.write("<table>")
-    for key, value in struturasControlo.items():
-        f.write(f"<tr><td>{key}</td><td>{value}</td></tr>")
-    f.write("</table>")
+        # Section 4
+        f.write("<h1>Section 4</h1>")
+        f.write("<h4>Total de situações em que estruturas de controlo surgem aninhadas em outras estruturas de controlo do mesmo ou de tipos diferentes.</h4>")
+        f.write(f"<p>{section4}</p>")
 
-    # Section 4
-    f.write("<h1>Section 4</h1>")
-    f.write(f"<p>{section4}</p>")
+        # Section 5
+        f.write("<h1>Section 5</h1>")
+        f.write("<h4>Lista de situações em que existam ifs aninhados que possam ser substituídos por um só if.</h4>")
+        f.write(f"<p>{section5}</p>")
 
-    # Section 5
-    f.write("<h1>Section 5</h1>")
-    f.write(f"<p>{section5}</p>")
-
-    f.write("</body></html>")
+        f.write("</body></html>")
 
 
-print("digraph G{\n",array, "\n}")
+    print("digraph G{\n",array, "\n}")
 
-def gerar_html_com_imagem(grafo_dot, nome_arquivo_html):
-    dot = graphviz.Digraph()
-    for line in grafo_dot.strip().split('\n'):
-        if '->' in line:
-            source, target = re.findall(r'"(.*?)"', line)
-            dot.edge(source, target)
-        else:
-            match = re.match(r'"(.*?)"\s*\[shape=(.*?)\];', line)
-            if match:
-                node, shape = match.groups()
-                dot.node(node, shape=shape)
+    def gerar_html_com_imagem(grafo_dot, nome_arquivo_html):
+        dot = graphviz.Digraph()
+        for line in grafo_dot.strip().split('\n'):
+            if '->' in line:
+                source, target = re.findall(r'"(.*?)"', line)
+                dot.edge(source, target)
             else:
-                node = re.findall(r'"(.*?)"', line)
-                if node:
-                    dot.node(node[0])
+                match = re.match(r'"(.*?)"\s*\[shape=(.*?)\];', line)
+                if match:
+                    node, shape = match.groups()
+                    dot.node(node, shape=shape)
+                else:
+                    node = re.findall(r'"(.*?)"', line)
+                    if node:
+                        dot.node(node[0])
 
-    nome_arquivo_imagem = 'grafo'
-    dot.render(filename=nome_arquivo_imagem, format='png', cleanup=True)
-    
-    conteudo_html = f'''
-    <html>
-    <head><title>Grafo</title></head>
-    <body>
-    <h1>Grafo Gerado</h1>
-    <img src="{nome_arquivo_imagem}.png">
-    </body>
-    </html>
-    '''
-    
-    with open(nome_arquivo_html, 'w') as f:
-        f.write(conteudo_html)
+        nome_arquivo_imagem = 'grafo'
+        dot.render(filename=nome_arquivo_imagem, format='png', cleanup=True)
 
-# Gerar HTML com a imagem do grafo
-nome_arquivo_html = 'grafo.html'
-gerar_html_com_imagem(array, nome_arquivo_html)
-print(f"Arquivo HTML gerado: {nome_arquivo_html}")
+        conteudo_html = f'''
+        <html>
+        <head><title>Grafo</title></head>
+        <body>
+        <h1>Grafo Gerado</h1>
+        <img src="{nome_arquivo_imagem}.png">
+        </body>
+        </html>
+        '''
+
+        with open(nome_arquivo_html, 'w') as f:
+            f.write(conteudo_html)
+
+    # Gerar HTML com a imagem do grafo
+    nome_arquivo_html = 'grafo.html'
+    gerar_html_com_imagem(array, nome_arquivo_html)
+    print(f"Arquivo HTML gerado: {nome_arquivo_html}")
+
+    pass
+
+
+def main():
+    while True:
+        print_menu()
+        choice = input("Digite o número da sua escolha: ")
+        if choice.isdigit():
+            choice = int(choice)
+            if choice == 0:
+                break
+            elif 1 <= choice <= len(frases):
+                selected_frase = frases[choice - 1]
+                process_frase(selected_frase)
+
+                while True:
+                    print_file_menu()
+                    file_choice = input("Digite o número da sua escolha: ")
+                    if file_choice == "0":
+                        break
+                    elif file_choice == "1":
+                        comando = ['open', 'output.html']
+                        subprocess.run(comando)
+                    elif file_choice == "2":
+                        comando = ['open', 'grafo.html']
+                        subprocess.run(comando)
+                    else:
+                        print("Escolha inválida. Tente novamente.")
+            else:
+                print("Escolha inválida. Tente novamente.")
+        else:
+            print("Escolha inválida. Tente novamente.")
+
+if __name__ == "__main__":
+    main()
